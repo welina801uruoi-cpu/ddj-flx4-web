@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="styles.css?v=20261102b" />
 </head>
 <body>
-  <!-- Hidden File Inputs for Deck 1, Deck 2 & Auto DJ Playlist (iOS Safari Audio Optimized) -->
-  <input type="file" id="directFileDeck1" accept="audio/*,.m4a,.mp3,.wav,.aac,.flac,.aiff,.aif,.ogg" hidden />
-  <input type="file" id="directFileDeck2" accept="audio/*,.m4a,.mp3,.wav,.aac,.flac,.aiff,.aif,.ogg" hidden />
-  <input type="file" id="autoDjFileInput" multiple accept="audio/*,.m4a,.mp3,.wav,.aac,.flac,.aiff,.aif,.ogg" hidden />
+  <!-- File Inputs for Deck 1, Deck 2 & Auto DJ Playlist (iOS Safari Audio Optimized) -->
+  <input type="file" id="directFileDeck1" accept=".mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg,audio/*" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
+  <input type="file" id="directFileDeck2" accept=".mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg,audio/*" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
+  <input type="file" id="autoDjFileInput" multiple accept=".mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg,audio/*" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
 
   <!-- ==================== 1. TOP HEADER BAR ==================== -->
   <header class="top-bar">
@@ -831,7 +831,7 @@
     </div>
   </div>
 
-  <script src="audio_engine.js?v=20261102d"></script>
-  <script src="ui_controller.js?v=20261102d"></script>
+  <script src="audio_engine.js?v=20261107a"></script>
+  <script src="ui_controller.js?v=20261107a"></script>
 </body>
 </html>

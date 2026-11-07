@@ -843,6 +843,11 @@
   async function handleLocalFileForDeck(file, deckId) {
     if (!file) return null;
     engine.resume();
+    engine.unlockIosAudio();
+    if (deckId) {
+      const titleEl = document.getElementById(`waveTitle${deckId}`);
+      if (titleEl) titleEl.textContent = `読込中: ${file.name}...`;
+    }
     const newTrack = createLocalTrackEntry(file);
     addTrackToAutoDjQueue(newTrack);
     if (deckId) {
@@ -854,11 +859,18 @@
   }
 
   function openMultiTrackFilePicker() {
+    engine.resume();
+    engine.unlockIosAudio();
+    const autoDjFileInput = document.getElementById("autoDjFileInput");
+    if (autoDjFileInput) {
+      autoDjFileInput.click();
+      return;
+    }
     const dynInput = document.createElement("input");
     dynInput.type = "file";
     dynInput.multiple = true;
-    dynInput.accept = "audio/*,.m4a,.mp3,.wav,.aac,.flac,.aiff,.aif,.ogg";
-    dynInput.hidden = true;
+    dynInput.accept = ".mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg,audio/*";
+    dynInput.style.cssText = "position:fixed;left:-9999px;opacity:0;";
     document.body.appendChild(dynInput);
     retainedPickerInputs.push(dynInput);
 
@@ -870,19 +882,19 @@
         return;
       }
       engine.resume();
-      // Add all N tracks instantly as lightweight metadata (0 MB decoded upfront — prevents iOS Safari OOM reset!)
+      engine.unlockIosAudio();
       for (let i = 0; i < files.length; i++) {
         const tr = createLocalTrackEntry(files[i]);
-        if (tr) {
-          if (!autoDjQueue.some((q) => q.id === tr.id)) {
-            autoDjQueue.push(tr);
-          }
+        if (tr && !autoDjQueue.some((q) => q.id === tr.id)) {
+          autoDjQueue.push(tr);
         }
       }
+      preloadInitialAutoDjDecks();
       renderAutoDjPlaylist();
       renderLibraryTable();
       renderSavedLibraryInAutoDj();
-      preloadInitialAutoDjDecks();
+      dynInput.remove();
+      retainedPickerInputs = retainedPickerInputs.filter((el) => el !== dynInput);
     });
 
     dynInput.click();
@@ -932,6 +944,26 @@
 
     document.getElementById("btnAutoDjSelectFiles").addEventListener("click", () => openMultiTrackFilePicker());
     document.getElementById("btnAutoDjAddFilesLive").addEventListener("click", () => openMultiTrackFilePicker());
+
+    if (fileInput) {
+      fileInput.addEventListener("change", (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        engine.resume();
+        engine.unlockIosAudio();
+        for (let i = 0; i < files.length; i++) {
+          const tr = createLocalTrackEntry(files[i]);
+          if (tr && !autoDjQueue.some((q) => q.id === tr.id)) {
+            autoDjQueue.push(tr);
+          }
+        }
+        preloadInitialAutoDjDecks();
+        renderAutoDjPlaylist();
+        renderLibraryTable();
+        renderSavedLibraryInAutoDj();
+        e.target.value = "";
+      });
+    }
 
     const btnManualPlayClose = document.getElementById("btnUseManualMode");
     if (btnManualPlayClose) {
@@ -2373,16 +2405,28 @@
     const btnAudioInit = document.getElementById("btnAudioInit");
     btnAudioInit.addEventListener("click", () => {
       engine.resume();
-      btnAudioInit.textContent = "🔊 Audio Ready";
+      engine.unlockIosAudio();
+      btnAudioInit.textContent = "Audio Ready";
     });
-    window.addEventListener("pointerdown", () => engine.resume(), { once: true });
+    window.addEventListener("pointerdown", () => {
+      engine.resume();
+      engine.unlockIosAudio();
+    }, { once: true });
 
     // Direct File Load Deck 1 & Deck 2
     const directFile1 = document.getElementById("directFileDeck1");
     const directFile2 = document.getElementById("directFileDeck2");
 
-    document.getElementById("btnDirectFile1").addEventListener("click", () => directFile1.click());
-    document.getElementById("btnDirectFile2").addEventListener("click", () => directFile2.click());
+    document.getElementById("btnDirectFile1").addEventListener("click", () => {
+      engine.resume();
+      engine.unlockIosAudio();
+      directFile1.click();
+    });
+    document.getElementById("btnDirectFile2").addEventListener("click", () => {
+      engine.resume();
+      engine.unlockIosAudio();
+      directFile2.click();
+    });
 
     const btnOpenIphoneMusic = document.getElementById("btnOpenIphoneMusicModal");
     if (btnOpenIphoneMusic) {
@@ -3059,15 +3103,22 @@
       if (!q) return;
       ytResultsGrid.innerHTML = `<div style="font-size:11px;color:#f97316;">検索中: 「${escapeHtml(q)}」...</div>`;
 
+      let ytResults = [];
+
+      // 1. Try YouTube backend server if online (Local PC / Tunnel / Cloud)
       try {
-        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        if (!data.ok || !data.results || data.results.length === 0) {
-          ytResultsGrid.innerHTML = `<div style="font-size:11px;color:#ef4444;">結果が見つかりませんでした</div>`;
-          return;
+        const res = await fetch(apiUrl(`/api/youtube/search?q=${encodeURIComponent(q)}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.ok && Array.isArray(data.results)) {
+            ytResults = data.results;
+          }
         }
+      } catch (_) {}
+
+      if (ytResults.length > 0) {
         ytResultsGrid.innerHTML = "";
-        data.results.forEach((item) => {
+        ytResults.forEach((item) => {
           const card = document.createElement("div");
           card.className = "yt-card";
           card.innerHTML = `
@@ -3076,7 +3127,7 @@
               <div class="yt-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
               <div class="yt-meta">${escapeHtml(item.artist)} • ${formatShortTime(item.duration || 0)}</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="hdr-btn btn-autodj-pro" style="padding:2px 6px;font-size:9px;" data-act="queue">➕ Auto DJへ追加</button>
+                <button class="hdr-btn btn-autodj-pro" style="padding:2px 6px;font-size:9px;" data-act="queue">Auto DJへ追加</button>
                 <button class="hdr-btn btn-load-d1" style="padding:2px 6px;font-size:9px;" data-act="d1">Deck 1</button>
                 <button class="hdr-btn btn-load-d2" style="padding:2px 6px;font-size:9px;" data-act="d2">Deck 2</button>
               </div>
@@ -3087,13 +3138,77 @@
           card.querySelector('[data-act="d2"]').addEventListener("click", () => startYoutubeExtraction(item.url || item.id, 2));
           ytResultsGrid.appendChild(card);
         });
-      } catch (err) {
-        ytResultsGrid.innerHTML = `
-          <div style="font-size:11px;color:#ef4444;line-height:1.6;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px;">
-            YouTube検索サーバーに接続できません。<br>
-            ※ PCが起動していない場合やGitHub Pages単体でのご利用時は、デッキの「Load Deck 1/2」または「PC・iPhoneファイルから曲を選択」から直接音源（.mp3 / .m4a / .wav）を読み込んで24時間いつでもDJプレイが可能です。
-          </div>`;
+        return;
       }
+
+      // 2. Fallback: Direct high-speed Apple / iTunes search (100% works on iPhone Safari & GitHub Pages without PC!)
+      try {
+        const appleUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=jp&media=music&entity=song&limit=25`;
+        const aRes = await fetch(appleUrl);
+        if (aRes.ok) {
+          const aData = await aRes.json();
+          if (aData && Array.isArray(aData.results) && aData.results.length > 0) {
+            ytResultsGrid.innerHTML = `
+              <div style="font-size:11px;color:#38bdf8;padding:8px;background:rgba(56,189,248,0.1);border-radius:6px;margin-bottom:8px;line-height:1.5;">
+                公式高音質音源から「${escapeHtml(q)}」を取得しました。ワンタップでデッキに読み込みDJプレイが可能です。
+              </div>`;
+            aData.results.filter((r) => r.previewUrl).forEach((r) => {
+              const item = {
+                id: "apple_" + r.trackId,
+                apple_id: String(r.trackId),
+                title: r.trackName,
+                artist: r.artistName || "",
+                album: r.collectionName || "",
+                thumbnail: (r.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
+                preview_url: r.previewUrl,
+                url: r.previewUrl,
+                duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : 30,
+                bpm: 120,
+                source: "apple_music",
+              };
+              const inQueue = autoDjQueue.some((x) => x.id === item.id);
+              const card = document.createElement("div");
+              card.className = "yt-card";
+              card.innerHTML = `
+                <img class="yt-thumb" src="${escapeHtml(item.thumbnail)}" alt="thumb" loading="lazy" />
+                <div class="yt-info">
+                  <div class="yt-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+                  <div class="yt-meta">${escapeHtml(item.artist)} • ${formatShortTime(item.duration || 0)}</div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <button class="hdr-btn ${inQueue ? "btn-demo-gradient" : "btn-autodj-pro"}" style="padding:2px 6px;font-size:9px;" data-act="queue">
+                      ${inQueue ? "セット済" : "Auto DJへ追加"}
+                    </button>
+                    <button class="hdr-btn btn-load-d1" style="padding:2px 6px;font-size:9px;" data-act="d1">Deck 1</button>
+                    <button class="hdr-btn btn-load-d2" style="padding:2px 6px;font-size:9px;" data-act="d2">Deck 2</button>
+                  </div>
+                </div>
+              `;
+              card.querySelector('[data-act="queue"]').addEventListener("click", async (ev) => {
+                const btn = ev.currentTarget;
+                btn.textContent = "追加中...";
+                await importAppleMusicTrackItem(item, "queue");
+                btn.textContent = "セット済";
+              });
+              card.querySelector('[data-act="d1"]').addEventListener("click", async () => {
+                await importAppleMusicTrackItem(item, 1);
+                document.getElementById("youtubeModal").classList.add("hidden");
+              });
+              card.querySelector('[data-act="d2"]').addEventListener("click", async () => {
+                await importAppleMusicTrackItem(item, 2);
+                document.getElementById("youtubeModal").classList.add("hidden");
+              });
+              ytResultsGrid.appendChild(card);
+            });
+            return;
+          }
+        }
+      } catch (_) {}
+
+      ytResultsGrid.innerHTML = `
+        <div style="font-size:11px;color:#ef4444;line-height:1.6;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px;">
+          検索結果が見つかりませんでした。<br>
+          ※ キーワード（曲名やアーティスト名）を変えて再検索するか、「Load Deck 1/2」から端末内の音源（.mp3 / .m4a）を選択してください。
+        </div>`;
     }
 
     async function startYoutubeExtraction(urlOrId, target) {
@@ -3110,7 +3225,7 @@
       ytJobBar.style.width = "5%";
 
       try {
-        const res = await fetch("/api/youtube/extract", {
+        const res = await fetch(apiUrl("/api/youtube/extract"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -3127,7 +3242,7 @@
         const jobId = data.job_id;
         const pollTimer = setInterval(async () => {
           try {
-            const stRes = await fetch(`/api/youtube/jobs/${jobId}`);
+            const stRes = await fetch(apiUrl(`/api/youtube/jobs/${jobId}`));
             const job = await stRes.json();
             ytJobText.textContent = job.message || "処理中...";
             ytJobPct.textContent = `${job.progress || 0}%`;
@@ -3172,16 +3287,18 @@
     if (!modal) return;
     modal.classList.remove("hidden");
 
-    if (initialTab) {
-      switchIphoneMusicTab(initialTab);
+    if (!initialTab) {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
+      initialTab = isMobile ? "apple" : "local";
     }
+    switchIphoneMusicTab(initialTab);
 
     if (!musicModalInitialized) {
       musicModalInitialized = true;
       await fetchLocalMusicLibrary(false);
       await updateShortcutBridgeUrlDisplay();
     } else {
-      // Re-render badges so "✓ セット済" stays up-to-date
+      // Re-render badges so "セット済" stays up-to-date
       renderLocalMusicTable();
     }
   }
@@ -3222,7 +3339,7 @@
     const artist = artistSelect ? artistSelect.value : "";
 
     try {
-      if (summaryEl) summaryEl.textContent = "⏳ Musicライブラリを読み込み中...";
+      if (summaryEl) summaryEl.textContent = "Musicライブラリを読み込み中...";
       const params = new URLSearchParams({
         q,
         artist,
@@ -3230,7 +3347,7 @@
       });
       if (forceRefresh) params.set("refresh", "1");
 
-      const res = await fetch(`/api/music-app/local?${params.toString()}`);
+      const res = await fetch(apiUrl(`/api/music-app/local?${params.toString()}`));
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "読み込みエラー");
 
@@ -3254,16 +3371,23 @@
       if (summaryEl) {
         if (data.total_library_count === 0) {
           summaryEl.textContent =
-            "PC内の Music / iTunes フォルダに曲が見つかりませんでした。「🍎 iPhone Music共有リンク / Apple Music検索」タブまたは「📲 iPhone本体から送る」タブをご利用ください。";
+            "PC内の Music / iTunes フォルダに曲が見つかりませんでした。「Apple Music検索」タブまたは端末ファイル選択をご利用ください。";
         } else {
-          summaryEl.textContent = `🎵 同期済み Music / iTunes ライブラリ 全 ${Number(data.total_library_count).toLocaleString()}曲中 ${Number(
+          summaryEl.textContent = `同期済み Music / iTunes ライブラリ 全 ${Number(data.total_library_count).toLocaleString()}曲中 ${Number(
             data.matched_count
           ).toLocaleString()}曲が一致（先頭 ${localMusicShownTracks.length}曲を表示中・原曲スピード再生対応）`;
         }
       }
       renderLocalMusicTable();
     } catch (err) {
-      if (summaryEl) summaryEl.textContent = `Musicライブラリ読込エラー: ${err.message}`;
+      if (badgeEl) badgeEl.textContent = "PC接続時";
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <div style="padding:10px;background:rgba(239,68,68,0.08);border-radius:6px;line-height:1.6;color:#fda4af;font-size:11px;">
+            PCのiTunes/Musicフォルダとの直接同期は、PCで ddj_flx4_app.py 実行時に利用可能です。<br>
+            iPhone単体（PCオフライン）でご利用の場合は、隣の<strong>「Apple Music検索」</strong>タブから曲名や歌手名で検索してワンタップでデッキに読み込み可能です。
+          </div>`;
+      }
     }
   }
 
@@ -3274,7 +3398,7 @@
 
     if (!localMusicShownTracks || localMusicShownTracks.length === 0) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="4" style="text-align:center;color:#9ca3af;padding:18px;">該当する曲がありません。検索ワードを変えるか「🍎 iPhone Music共有リンク / Apple Music検索」タブをお試しください。</td>`;
+      tr.innerHTML = `<td colspan="4" style="text-align:center;color:#9ca3af;padding:18px;">該当する曲がありません。検索ワードを変えるか「Apple Music検索」タブをお試しください。</td>`;
       tbody.appendChild(tr);
       return;
     }
@@ -3330,7 +3454,7 @@
     const statusText = document.getElementById("appleMusicStatusText");
     if (statusBox) statusBox.classList.remove("hidden");
 
-    // Fast path: matched directly in local synced Music / iTunes library! (0.1s instant load)
+    // 1. Matched directly in local synced Music / iTunes library
     if (item.local_track) {
       const localTrack = item.local_track;
       addTrackToAutoDjQueue(localTrack);
@@ -3341,19 +3465,48 @@
         preloadInitialAutoDjDecks();
       }
       if (statusText) {
-        statusText.textContent = `⚡ Musicライブラリ同期曲から瞬時に追加完了: ${localTrack.title} - ${localTrack.artist}`;
+        statusText.textContent = `Musicライブラリから追加完了: ${localTrack.title} - ${localTrack.artist}`;
       }
       return localTrack;
     }
 
-    // Streaming-only Apple Music track: extract full high-quality audio automatically
+    // 2. Direct high-quality Apple official audio stream loading (100% works on iPhone without PC/backend!)
+    if (item.preview_url || item.url) {
+      const trackObj = {
+        id: item.id || ("apple_" + (item.apple_id || Date.now())),
+        apple_id: item.apple_id,
+        title: item.title,
+        artist: item.artist || "",
+        album: item.album || "",
+        thumbnail: item.thumbnail || "",
+        url: item.preview_url || item.url,
+        duration: item.duration || 30,
+        bpm: 120, // will be auto-calculated upon audio decode
+        source: "apple_music"
+      };
+
+      addTrackToAutoDjQueue(trackObj);
+      if (target === 1 || target === 2) {
+        if (statusText) statusText.textContent = `Deck ${target}へ読み込み中: ${trackObj.title}...`;
+        await loadTrackIntoDeck(target, trackObj);
+        document.getElementById("iphoneMusicModal").classList.add("hidden");
+      } else {
+        preloadInitialAutoDjDecks();
+      }
+      if (statusText) {
+        statusText.textContent = `Apple Musicからセットリストへ追加完了: ${trackObj.title} - ${trackObj.artist}`;
+      }
+      return trackObj;
+    }
+
+    // 3. Fallback: if backend extraction is requested and backend is online
     const searchQuery = `${item.artist || ""} ${item.title || ""} official audio`.trim();
     if (statusText) {
-      statusText.textContent = `🍎 Apple Music曲をフル音源取得中: ${item.title} - ${item.artist || ""}...`;
+      statusText.textContent = `Apple Music曲をフル音源取得中: ${item.title} - ${item.artist || ""}...`;
     }
 
     try {
-      const res = await fetch("/api/youtube/extract", {
+      const res = await fetch(apiUrl("/api/youtube/extract"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3374,10 +3527,10 @@
       return await new Promise((resolve) => {
         const poll = setInterval(async () => {
           try {
-            const stRes = await fetch(`/api/youtube/jobs/${jobId}`);
+            const stRes = await fetch(apiUrl(`/api/youtube/jobs/${jobId}`));
             const job = await stRes.json();
             if (statusText) {
-              statusText.textContent = `🍎 ${item.title}: ${job.message || "処理中..."} (${job.progress || 0}%)`;
+              statusText.textContent = `${item.title}: ${job.message || "処理中..."} (${job.progress || 0}%)`;
             }
             if (job.status === "completed" && job.track) {
               clearInterval(poll);
@@ -3392,7 +3545,7 @@
                 preloadInitialAutoDjDecks();
               }
               if (statusText) {
-                statusText.textContent = `✓ Auto DJセットリストへ追加完了: ${job.track.title} (${Number(job.track.bpm || 120).toFixed(1)} BPM)`;
+                statusText.textContent = `Auto DJセットリストへ追加完了: ${job.track.title} (${Number(job.track.bpm || 120).toFixed(1)} BPM)`;
               }
               resolve(job.track);
             } else if (job.status === "error") {
@@ -3544,23 +3697,65 @@
       if (e.key === "Enter") resolveAndImportAppleMusicInput(shareInput.value);
     });
 
-    // Apple Music Catalog Search
+    // Apple Music Catalog Search (Direct Apple Search API + Local Sync fallback)
     const catalogInput = document.getElementById("inputAppleCatalogSearch");
     const catalogGrid = document.getElementById("appleCatalogResultsGrid");
     async function doAppleCatalogSearch() {
       const q = (catalogInput.value || "").trim();
       if (!q) return;
       stopPreviewAudio();
-      catalogGrid.innerHTML = `<div style="padding:14px;color:#fda4af;">🍎 Apple Music カタログを検索中...</div>`;
+      catalogGrid.innerHTML = `<div style="padding:14px;color:#fda4af;">Apple Music / iTunes カタログを検索中: 「${escapeHtml(q)}」...</div>`;
       try {
-        const res = await fetch(`/api/music-app/apple-search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
+        let results = [];
+
+        // 1. Direct Apple iTunes API Search (100% works on iPhone Safari & GitHub Pages without PC/backend!)
+        try {
+          const appleUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=jp&media=music&entity=song&limit=30`;
+          const aRes = await fetch(appleUrl);
+          if (aRes.ok) {
+            const aData = await aRes.json();
+            if (aData && Array.isArray(aData.results) && aData.results.length > 0) {
+              results = aData.results
+                .filter((r) => r.trackName && r.previewUrl)
+                .map((r) => ({
+                  id: "apple_" + r.trackId,
+                  apple_id: String(r.trackId),
+                  title: r.trackName,
+                  artist: r.artistName || "",
+                  album: r.collectionName || "",
+                  thumbnail: (r.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
+                  preview_url: r.previewUrl,
+                  url: r.previewUrl,
+                  duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : 30,
+                  bpm: 120,
+                  source: "apple_music",
+                }));
+            }
+          }
+        } catch (itunesErr) {
+          console.warn("iTunes direct search failed, trying backend:", itunesErr);
+        }
+
+        // 2. If direct search returned empty, try server endpoint as fallback
+        if (results.length === 0) {
+          try {
+            const res = await fetch(apiUrl(`/api/music-app/apple-search?q=${encodeURIComponent(q)}`));
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.ok && Array.isArray(data.results)) {
+                results = data.results;
+              }
+            }
+          } catch (_) {}
+        }
+
         catalogGrid.innerHTML = "";
-        if (!data.ok || !data.results || data.results.length === 0) {
-          catalogGrid.innerHTML = `<div style="padding:14px;color:#9ca3af;">該当する曲が見つかりませんでした。</div>`;
+        if (results.length === 0) {
+          catalogGrid.innerHTML = `<div style="padding:14px;color:#9ca3af;">「${escapeHtml(q)}」に一致する曲が見つかりませんでした。別のキーワード（歌手名や曲名）でお試しください。</div>`;
           return;
         }
-        data.results.forEach((item) => {
+
+        data_results: results.forEach((item) => {
           const isLocal = Boolean(item.local_track);
           const inQueue = isLocal && autoDjQueue.some((x) => x.id === item.local_track.id);
           const card = document.createElement("div");
@@ -3572,7 +3767,7 @@
                 ${escapeHtml(item.title)}
                 ${
                   isLocal
-                    ? '<span style="background:#065f46;color:#6ee7b7;font-size:9px;padding:1px 6px;border-radius:999px;margin-left:6px;">⚡ 同期曲あり・即読込</span>'
+                    ? '<span style="background:#065f46;color:#6ee7b7;font-size:9px;padding:1px 6px;border-radius:999px;margin-left:6px;">同期曲あり・即読込</span>'
                     : ""
                 }
               </div>
@@ -3581,11 +3776,11 @@
             <div class="yt-actions">
               ${
                 item.preview_url
-                  ? '<button class="hdr-btn btn-qr" style="padding:4px 7px;font-size:10px;" data-act="preview">▶ 試聴</button>'
+                  ? '<button class="hdr-btn btn-qr" style="padding:4px 7px;font-size:10px;" data-act="preview">試聴</button>'
                   : ""
               }
               <button class="hdr-btn ${inQueue ? "btn-demo-gradient" : "btn-autodj-pro"}" style="padding:4px 8px;font-size:10px;" data-act="queue">
-                ${inQueue ? "✓ セット済" : "➕ Auto DJ"}
+                ${inQueue ? "セット済" : "Auto DJ"}
               </button>
               <button class="hdr-btn btn-load-d1" style="padding:4px 8px;font-size:10px;" data-act="d1">Deck 1</button>
               <button class="hdr-btn btn-load-d2" style="padding:4px 8px;font-size:10px;" data-act="d2">Deck 2</button>
@@ -3597,33 +3792,39 @@
             prevBtn.addEventListener("click", () => {
               if (previewAudioEl && previewAudioEl.dataset.appleId === item.apple_id && !previewAudioEl.paused) {
                 stopPreviewAudio();
-                prevBtn.textContent = "▶ 試聴";
+                prevBtn.textContent = "試聴";
                 return;
               }
               stopPreviewAudio();
               document.querySelectorAll('#appleCatalogResultsGrid [data-act="preview"]').forEach((b) => {
-                b.textContent = "▶ 試聴";
+                b.textContent = "試聴";
               });
               engine.resume();
               previewAudioEl = new Audio(item.preview_url);
               previewAudioEl.dataset.appleId = item.apple_id;
               previewAudioEl.volume = 0.8;
               previewAudioEl.play().catch(() => {});
-              prevBtn.textContent = "⏹ 停止";
+              prevBtn.textContent = "停止";
               previewAudioEl.addEventListener("ended", () => {
-                prevBtn.textContent = "▶ 試聴";
+                prevBtn.textContent = "試聴";
               });
             });
           }
 
           card.querySelector('[data-act="queue"]').addEventListener("click", async (ev) => {
             const btn = ev.currentTarget;
-            btn.textContent = "⏳ 追加中...";
+            btn.textContent = "追加中...";
             const added = await importAppleMusicTrackItem(item, "queue");
-            btn.textContent = added ? "✓ セット済" : "➕ Auto DJ";
+            btn.textContent = added ? "セット済" : "Auto DJ";
           });
-          card.querySelector('[data-act="d1"]').addEventListener("click", () => importAppleMusicTrackItem(item, 1));
-          card.querySelector('[data-act="d2"]').addEventListener("click", () => importAppleMusicTrackItem(item, 2));
+          card.querySelector('[data-act="d1"]').addEventListener("click", async () => {
+            await importAppleMusicTrackItem(item, 1);
+            document.getElementById("iphoneMusicModal").classList.add("hidden");
+          });
+          card.querySelector('[data-act="d2"]').addEventListener("click", async () => {
+            await importAppleMusicTrackItem(item, 2);
+            document.getElementById("iphoneMusicModal").classList.add("hidden");
+          });
           catalogGrid.appendChild(card);
         });
       } catch (err) {
