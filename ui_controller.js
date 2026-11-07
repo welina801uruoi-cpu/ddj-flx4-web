@@ -289,12 +289,15 @@
  }
 
  function getApiBaseUrl() {
- const custom = (localStorage.getItem("flx4_cloud_api_url") || "").trim();
- if (custom && (custom.startsWith("http://") || custom.startsWith("https://"))) {
- return custom.replace(/\/+$/, "");
- }
- return "";
- }
+    const custom = (localStorage.getItem("flx4_cloud_api_url") || "").trim();
+    if (custom && (custom.startsWith("http://") || custom.startsWith("https://"))) {
+      return custom.replace(/\/+$/, "");
+    }
+    if (window.location && window.location.hostname && window.location.hostname.includes("github.io")) {
+      return "https://commodities-radios-electro-basin.trycloudflare.com";
+    }
+    return "";
+  }
 
  function apiUrl(path) {
  if (!path.startsWith("/")) path = "/" + path;
