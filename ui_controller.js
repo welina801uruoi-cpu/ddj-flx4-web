@@ -89,7 +89,7 @@
  badge.textContent = `${prefix} DAVID GUETTA @ TML 2026`;
  break;
  case "tokoto":
- badge.textContent = `${prefix}🪩 MITOMI TOKOTO @ ageHa`;
+ badge.textContent = `${prefix} MITOMI TOKOTO @ ageHa`;
  break;
  case "nicky":
  badge.textContent = `${prefix} NICKY ROMERO @ TML 2019`;
@@ -98,7 +98,7 @@
  badge.textContent = " FESTIVAL HYPE AUTO DJ";
  break;
  case "club":
- badge.textContent = "️ CLUB BASS-SWAP AUTO DJ";
+ badge.textContent = " CLUB BASS-SWAP AUTO DJ";
  break;
  case "scratch":
  badge.textContent = " TURNTABLIST AUTO DJ";
@@ -294,7 +294,7 @@
       return custom.replace(/\/+$/, "");
     }
     if (window.location && window.location.hostname && window.location.hostname.includes("github.io")) {
-      return "https://commodities-radios-electro-basin.trycloudflare.com";
+      return "https://hostel-concert-concert-nominated.trycloudflare.com";
     }
     return "";
   }
@@ -481,7 +481,7 @@
  <td style="font-family:monospace;">${track.bpm ? Number(track.bpm).toFixed(1) : "自動解析"}</td>
  <td style="font-family:monospace;">${formatShortTime(track.duration || 0)}</td>
  <td>
- <button class="hdr-btn btn-record" style="padding:2px 6px;font-size:10px;" data-act="del" title="履歴から削除">️</button>
+ <button class="hdr-btn btn-record" style="padding:2px 6px;font-size:10px;" data-act="del" title="履歴から削除"></button>
  </td>
  `;
  tr.querySelector('[data-act="queue"]').addEventListener("click", () => {
@@ -534,7 +534,7 @@
  <td style="width:80px;font-family:monospace;color:#38bdf8;">${track.bpm ? `${Number(track.bpm).toFixed(1)} BPM` : "原曲自動"}</td>
  <td style="width:95px;text-align:right;white-space:nowrap;">
  <span style="font-family:monospace;color:#9ca3af;margin-right:6px;">${formatShortTime(track.duration || 0)}</span>
- <button class="hdr-btn btn-record" style="padding:2px 6px;font-size:9px;" data-act="del" title="履歴から削除">️</button>
+ <button class="hdr-btn btn-record" style="padding:2px 6px;font-size:9px;" data-act="del" title="履歴から削除"></button>
  </td>
  `;
  tr.querySelector('[data-act="add"]').addEventListener("click", () => {
@@ -566,8 +566,8 @@
  iphone_music: " Musicライブラリ",
  apple_music: " Apple Music",
  local: " 指定ファイル",
- upload: "️ 保存ファイル",
- youtube: "▶️ YouTube",
+ upload: " 保存ファイル",
+ youtube: "▶ YouTube",
  };
 
  autoDjQueue.forEach((track, idx) => {
@@ -634,31 +634,114 @@
  });
  }
 
- function decodeAudioDataSafe(arrBuf) {
- return new Promise((resolve, reject) => {
- let settled = false;
- const done = (buf) => {
- if (!settled) {
- settled = true;
- resolve(buf);
- }
- };
- const fail = (err) => {
- if (!settled) {
- settled = true;
- reject(err || new Error("Audio decode failed"));
- }
- };
- try {
- const p = engine.ctx.decodeAudioData(arrBuf, done, fail);
- if (p && typeof p.then === "function") {
- p.then(done, fail);
- }
- } catch (err) {
- fail(err);
- }
- });
- }
+ function stripId3v2Header(arrBuf) {
+    try {
+      const u8 = new Uint8Array(arrBuf);
+      if (u8.length > 10 && u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33) {
+        const tagSize = ((u8[6] & 0x7f) << 21) | ((u8[7] & 0x7f) << 14) | ((u8[8] & 0x7f) << 7) | (u8[9] & 0x7f);
+        const totalHeader = 10 + tagSize;
+        if (totalHeader > 0 && totalHeader < u8.length - 256) {
+          return arrBuf.slice(totalHeader);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function decodeAudioDataSafe(arrBuf) {
+    if (!arrBuf || arrBuf.byteLength === 0) {
+      throw new Error("音声データが空です");
+    }
+    if (engine.ctx && engine.ctx.state !== "running") {
+      try {
+        await engine.ctx.resume();
+      } catch (_) {}
+    }
+
+    const tryDecode = (bufToDecode) => {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const done = (buf) => {
+          if (!settled) {
+            settled = true;
+            resolve(buf);
+          }
+        };
+        const fail = (err) => {
+          if (!settled) {
+            settled = true;
+            reject(err || new Error("Audio decode failed"));
+          }
+        };
+        try {
+          const copy = bufToDecode.slice(0);
+          const p = engine.ctx.decodeAudioData(copy, done, fail);
+          if (p && typeof p.then === "function") {
+            p.then(done, fail);
+          }
+        } catch (err) {
+          fail(err);
+        }
+      });
+    };
+
+    try {
+      return await tryDecode(arrBuf);
+    } catch (primaryErr) {
+      const stripped = stripId3v2Header(arrBuf);
+      if (stripped) {
+        try {
+          return await tryDecode(stripped);
+        } catch (_) {}
+      }
+      throw primaryErr;
+    }
+  }
+
+  async function fetchAndDecodeAudioUrl(rawUrl, transcodeUrl = null) {
+    if (engine.ctx && engine.ctx.state !== "running") {
+      try { await engine.ctx.resume(); } catch (_) {}
+    }
+
+    const candidateUrls = [];
+    if (rawUrl.startsWith("/")) {
+      candidateUrls.push(apiUrl(withSafeDecodeUrl(rawUrl)));
+      if (transcodeUrl && transcodeUrl.startsWith("/")) {
+        candidateUrls.push(apiUrl(withSafeDecodeUrl(transcodeUrl)));
+      }
+    } else if (rawUrl.includes("apple.com") || rawUrl.includes("mzstatic.com")) {
+      candidateUrls.push(rawUrl);
+      candidateUrls.push(`https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`);
+      candidateUrls.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`);
+      const pApi = apiUrl(`/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`);
+      if (pApi && (pApi.startsWith("http://") || pApi.startsWith("https://") || !window.location.hostname.includes("github.io"))) {
+        candidateUrls.push(pApi);
+      }
+    } else {
+      candidateUrls.push(withSafeDecodeUrl(rawUrl));
+      if (transcodeUrl) candidateUrls.push(withSafeDecodeUrl(transcodeUrl));
+    }
+
+    let lastErr = null;
+    for (const u of candidateUrls) {
+      try {
+        const resp = await fetch(u, {
+          headers: { Accept: "audio/*, */*" },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
+        });
+        if (!resp.ok) continue;
+        const cType = resp.headers.get("content-type") || "";
+        if (cType.includes("text/html") || cType.includes("text/plain")) continue;
+        let sBuf = await resp.arrayBuffer();
+        if (!sBuf || sBuf.byteLength < 500) continue;
+        const buf = await decodeAudioDataSafe(sBuf);
+        if (buf) return buf;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("音声の取得・デコードに失敗しました");
+  }
 
  // Determines intelligent mix-in cue point based on song's lyrics, rhythm, and transition strategy:
  // - 'smart_mashup': Cues 8 bars before the Chorus/Drop so the build-up layers over outgoing groove, landing on the drop!
@@ -773,40 +856,29 @@
  audioBuffer = await decodeAudioDataSafe(arrBuf);
  arrBuf = null;
  } catch (localDecErr) {
- // Fallback for multi-hour or ALAC local files: upload to server for FFmpeg safe slicing/transcode
+ // Fallback: try uploading to server if backend is accessible
+ const upUrl = apiUrl("/api/upload");
+ if (upUrl && (upUrl.startsWith("http://") || upUrl.startsWith("https://") || !window.location.hostname.includes("github.io"))) {
+ try {
  const fd = new FormData();
  fd.append("file", track.fileBlob, track.fileBlob.name || "track.mp3");
- const upRes = await fetch("/api/upload", { method: "POST", body: fd });
- if (!upRes.ok) throw localDecErr;
+ const upRes = await fetch(upUrl, { method: "POST", body: fd });
+ if (upRes.ok) {
  const upData = await upRes.json();
- if (!upData.ok || !upData.track || !upData.track.url) throw localDecErr;
+ if (upData.ok && upData.track && upData.track.url) {
  track.url = upData.track.url;
  delete track.fileBlob;
- const sResp = await fetch(withSafeDecodeUrl(track.url));
- if (!sResp.ok) throw new Error(`HTTP ${sResp.status}`);
- let sBuf = await sResp.arrayBuffer();
- audioBuffer = await decodeAudioDataSafe(sBuf);
- sBuf = null;
+ audioBuffer = await fetchAndDecodeAudioUrl(track.url, track.transcode_url);
+ }
+ }
+ } catch (_) {}
+ }
+ if (!audioBuffer) {
+ throw localDecErr;
+ }
  }
  } else if (track.url) {
- try {
- const resp = await fetch(withSafeDecodeUrl(track.url));
- if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
- let arrBuf = await resp.arrayBuffer();
- audioBuffer = await decodeAudioDataSafe(arrBuf);
- arrBuf = null;
- } catch (decodeErr) {
- // Automatic FFmpeg MP3 stream fallback (e.g. if an iTunes .m4a uses Apple Lossless ALAC)
- if (track.transcode_url) {
- const resp2 = await fetch(withSafeDecodeUrl(track.transcode_url));
- if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
- let arrBuf2 = await resp2.arrayBuffer();
- audioBuffer = await decodeAudioDataSafe(arrBuf2);
- arrBuf2 = null;
- } else {
- throw decodeErr;
- }
- }
+ audioBuffer = await fetchAndDecodeAudioUrl(track.url, track.transcode_url);
  }
 
  if (deckLoadSeq[deckId] !== mySeq || !audioBuffer) {
@@ -854,9 +926,13 @@
  if (deckReservedTrackId[deckId] === track.id) {
  deckReservedTrackId[deckId] = null;
  }
+ console.error("loadTrackIntoDeck error:", err);
+ if (track.id === "demo1" || track.id === "demo2" || (track.url && (track.url.includes("Back%20to%20You") || track.url.includes("Burn.mp3")))) {
+ resetEmptyDeckDisplay(deckId);
+ } else {
  if (titleEl) titleEl.textContent = `読込エラー: ${track.title}`;
  if (stateEl) stateEl.textContent = "ERROR";
- console.error(err);
+ }
  } finally {
  if (deckLoadSeq[deckId] === mySeq) {
  deckInFlightPromise[deckId] = null;
@@ -1316,7 +1392,7 @@
  modal.classList.remove("hidden");
  const countEl = document.getElementById("autoDjTrackCount");
  if (countEl) {
- countEl.textContent = "️ まず曲を1曲以上追加してください！";
+ countEl.textContent = " まず曲を1曲以上追加してください！";
  }
  return false;
  }
@@ -2178,7 +2254,7 @@
  setKnobProgrammatically(`knobMid${activeId}`, `mid${activeId}`, 0);
  setKnobProgrammatically(`knobHi${activeId}`, `hi${activeId}`, 0);
  setKnobProgrammatically(`knobCfx${activeId}`, `cfx${activeId}`, 0);
- statusEl.textContent = `🪩 [MITOMI TOKOTO @ ageHa] 縦フェーダー CH${standbyId} ハーモニック調合中 (${tempoTag})`;
+ statusEl.textContent = ` [MITOMI TOKOTO @ ageHa] 縦フェーダー CH${standbyId} ハーモニック調合中 (${tempoTag})`;
  return;
  }
 
@@ -2220,7 +2296,7 @@
  if (!standbyDeck.isPlaying) {
  setChannelFaderProgrammatically(standbyId, 0.0);
  }
- statusEl.textContent = `🪩 [MITOMI TOKOTO @ ageHa] DECK ${activeId} (${speedDesc} / 次曲: ${nextTitle})`;
+ statusEl.textContent = ` [MITOMI TOKOTO @ ageHa] DECK ${activeId} (${speedDesc} / 次曲: ${nextTitle})`;
  return;
  }
 
@@ -2315,7 +2391,7 @@
  setChannelFaderProgrammatically(standbyId, 0.84 + smoothRise * 0.08);
  setKnobProgrammatically(`knobCfx${activeId}`, `cfx${activeId}`, smoothRise * 24);
  setKnobProgrammatically(`knobCfx${standbyId}`, `cfx${standbyId}`, 5 * (1.0 - smoothRise));
- statusEl.textContent = `🪩 [MITOMI TOKOTO FILTER+ECHO] スムースフィルター＆LOW完全スワップ${tempoTransitionMsg} (${Math.round(buildT * 100)}%)`;
+ statusEl.textContent = ` [MITOMI TOKOTO FILTER+ECHO] スムースフィルター＆LOW完全スワップ${tempoTransitionMsg} (${Math.round(buildT * 100)}%)`;
  return;
  }
 
@@ -2408,7 +2484,7 @@
  if ((autoDj.tempoMode === "adaptive" || autoDj.tempoMode === "smart_bpm") && mixT >= 0.85) {
  resetDeckToOriginalBpmUI(standbyId);
  }
- statusEl.textContent = `🪩 [MITOMI TOKOTO VERTICAL MIX] 縦フェーダースムース切替 DECK ${standbyId} (${(standbyDeck.baseBpm || 120).toFixed(1)} BPM) (${Math.round(mixT * 100)}%)`;
+ statusEl.textContent = ` [MITOMI TOKOTO VERTICAL MIX] 縦フェーダースムース切替 DECK ${standbyId} (${(standbyDeck.baseBpm || 120).toFixed(1)} BPM) (${Math.round(mixT * 100)}%)`;
  return;
  }
 
@@ -3935,10 +4011,37 @@
  try {
  let results = [];
 
- // 1. Direct Apple iTunes API Search via JSONP (100% works on iPhone Safari & GitHub Pages without PC/backend!)
+ // 1. Direct CORS fetch to Apple iTunes Search API (Fastest on iOS Safari)
  try {
  const appleUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=jp&media=music&entity=song&limit=30`;
- const aData = await jsonpFetch(appleUrl, 7000);
+ const res = await fetch(appleUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+ if (res.ok) {
+ const aData = await res.json();
+ if (aData && Array.isArray(aData.results) && aData.results.length > 0) {
+ results = aData.results
+ .filter((r) => r.trackName && r.previewUrl)
+ .map((r) => ({
+ id: "apple_" + r.trackId,
+ apple_id: String(r.trackId),
+ title: r.trackName,
+ artist: r.artistName || "",
+ album: r.collectionName || "",
+ thumbnail: (r.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
+ preview_url: r.previewUrl,
+ url: r.previewUrl,
+ duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : 30,
+ bpm: 120,
+ source: "apple_music",
+ }));
+ }
+ }
+ } catch (_) {}
+
+ // 2. Direct Apple iTunes API Search via JSONP
+ if (results.length === 0) {
+ try {
+ const appleUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=jp&media=music&entity=song&limit=30`;
+ const aData = await jsonpFetch(appleUrl, 6000);
  if (aData && Array.isArray(aData.results) && aData.results.length > 0) {
  results = aData.results
  .filter((r) => r.trackName && r.previewUrl)
@@ -3959,17 +4062,49 @@
  } catch (itunesErr) {
  console.warn("iTunes JSONP search failed:", itunesErr);
  }
+ }
 
- // 2. Server endpoint fallback if connected
+ // 3. Public CORS proxy fallback
+ if (results.length === 0) {
+ try {
+ const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=jp&media=music&entity=song&limit=30`)}`;
+ const res = await fetch(proxyUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+ if (res.ok) {
+ const aData = await res.json();
+ if (aData && Array.isArray(aData.results) && aData.results.length > 0) {
+ results = aData.results
+ .filter((r) => r.trackName && r.previewUrl)
+ .map((r) => ({
+ id: "apple_" + r.trackId,
+ apple_id: String(r.trackId),
+ title: r.trackName,
+ artist: r.artistName || "",
+ album: r.collectionName || "",
+ thumbnail: (r.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
+ preview_url: r.previewUrl,
+ url: r.previewUrl,
+ duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : 30,
+ bpm: 120,
+ source: "apple_music",
+ }));
+ }
+ }
+ } catch (_) {}
+ }
+
+ // 4. Server endpoint fallback if connected
  if (results.length === 0) {
  try {
  const sUrl = apiUrl(`/api/music-app/apple-search?q=${encodeURIComponent(q)}`);
  if (sUrl && (sUrl.startsWith("http://") || sUrl.startsWith("https://") || !window.location.hostname.includes("github.io"))) {
  const res = await fetch(sUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
  if (res.ok) {
+ const cType = res.headers.get("content-type") || "";
+ if (cType.includes("application/json")) {
  const data = await res.json();
  if (data && data.ok && Array.isArray(data.results)) {
  results = data.results;
+ }
  }
  }
  }
@@ -4849,7 +4984,7 @@
  ctx.fillText("Pioneer DJ DDJ-FLX4", 68, 27);
 
  // Mode Pill
- const modeLabel = autoDj.enabled ? " AUTO DJ PRO LIVE" : "️ MANUAL DJ MODE";
+ const modeLabel = autoDj.enabled ? " AUTO DJ PRO LIVE" : " MANUAL DJ MODE";
  fillRoundRectPath(ctx, 260, 9, 172, 24, 12);
  ctx.fillStyle = autoDj.enabled ? "rgba(236, 72, 153, 0.24)" : "rgba(59, 130, 246, 0.20)";
  ctx.fill();
