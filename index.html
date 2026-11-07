@@ -14,7 +14,8 @@
 </head>
 <body>
  <!-- File Inputs for Deck 1, Deck 2 & Auto DJ Playlist (iOS Safari Audio Optimized) -->
- <input type="file" id="directFileDeck1" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+ <input type="file" id="inputLocalMusicFolder" webkitdirectory directory multiple style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+  <input type="file" id="directFileDeck1" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
  <input type="file" id="directFileDeck2" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
  <input type="file" id="autoDjFileInput" multiple accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
 
@@ -724,7 +725,18 @@
 
  <!-- TAB 1: SYNCED iTUNES / MUSIC LIBRARY -->
  <div class="music-pane" id="musicPane_local">
- <div class="music-filter-bar">
+       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="hdr-btn btn-demo-gradient" id="btnPickLocalMusicFolder" style="padding:6px 14px;font-size:12px;font-weight:700;">
+          PC内のMusic / iTunesフォルダを選択して一括読込
+        </button>
+        <button class="hdr-btn btn-autodj-pro" id="btnPickIphoneAudioFilesLocal" style="padding:6px 14px;font-size:12px;font-weight:700;">
+          iPhone内の音源ファイルを選択（ファイル / iCloud）
+        </button>
+        <a href="http://127.0.0.1:8090" target="_blank" class="hdr-btn btn-load-d2" id="linkLocalServerOpen" style="padding:6px 12px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">
+          ローカルPCサーバー (127.0.0.1:8090) で開く
+        </a>
+      </div>
+      <div class="music-filter-bar">
  <input type="text" id="inputMusicLocalSearch" placeholder=" 曲名・アーティスト名・アルバム名で検索 (iPhone同期 / iTunesライブラリ)..." />
  <select id="selectMusicLocalArtist">
  <option value="">すべてのアーティスト</option>
@@ -832,6 +844,6 @@
  </div>
 
  <script src="audio_engine.js?v=20261107a"></script>
- <script src="ui_controller.js?v=20261107c"></script>
+ <script src="ui_controller.js?v=20261107e"></script>
 </body>
 </html>

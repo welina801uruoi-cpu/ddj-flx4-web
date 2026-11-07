@@ -3754,7 +3754,120 @@
  });
  });
 
- // Tab 1: Local synced Music / iTunes library controls
+ 
+    // Direct PC Music Folder Picker (works on Chrome, Edge, Safari on PC!)
+    const btnPickFolder = document.getElementById("btnPickLocalMusicFolder");
+    const inputFolder = document.getElementById("inputLocalMusicFolder");
+    if (btnPickFolder) {
+      btnPickFolder.addEventListener("click", async () => {
+        const summaryEl = document.getElementById("musicLocalSummary");
+        // Modern File System Access API
+        if (window.showDirectoryPicker) {
+          try {
+            const dirHandle = await window.showDirectoryPicker();
+            if (summaryEl) summaryEl.textContent = "PCフォルダ内をスキャン中: " + dirHandle.name + "...";
+            const files = [];
+            async function scanDir(handle, currentPath = "") {
+              for await (const entry of handle.values()) {
+                if (entry.kind === "file") {
+                  const ext = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
+                  if ([".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff", ".aif", ".ogg"].includes(ext)) {
+                    const file = await entry.getFile();
+                    files.push({ file, relPath: currentPath ? currentPath + "/" + entry.name : entry.name });
+                  }
+                } else if (entry.kind === "directory") {
+                  await scanDir(entry, currentPath ? currentPath + "/" + entry.name : entry.name);
+                }
+              }
+            }
+            await scanDir(dirHandle);
+            loadScannedLocalFilesIntoTable(files);
+            return;
+          } catch (err) {
+            if (err.name === "AbortError") return;
+            console.warn("showDirectoryPicker failed, falling back to input:", err);
+          }
+        }
+        if (inputFolder) inputFolder.click();
+      });
+    }
+
+    if (inputFolder) {
+      inputFolder.addEventListener("change", (e) => {
+        const rawFiles = Array.from(e.target.files || []);
+        const files = rawFiles
+          .filter((f) => {
+            const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
+            return [".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff", ".aif", ".ogg"].includes(ext);
+          })
+          .map((file) => ({ file, relPath: file.webkitRelativePath || file.name }));
+        loadScannedLocalFilesIntoTable(files);
+      });
+    }
+
+    function loadScannedLocalFilesIntoTable(scannedFiles) {
+      const summaryEl = document.getElementById("musicLocalSummary");
+      const badgeEl = document.getElementById("musicLocalTotalBadge");
+      const artistSelect = document.getElementById("selectMusicLocalArtist");
+
+      if (!scannedFiles || scannedFiles.length === 0) {
+        if (summaryEl) summaryEl.textContent = "指定されたフォルダ内に音声ファイル（.mp3 / .m4a / .wav）が見つかりませんでした。";
+        return;
+      }
+
+      const tracks = scannedFiles.map((item, idx) => {
+        const parts = item.relPath.split(/[/\\]/);
+        const fileName = parts[parts.length - 1];
+        const album = parts.length >= 2 ? parts[parts.length - 2] : "";
+        const artist = parts.length >= 3 ? parts[parts.length - 3] : (album || "PC Music");
+        const title = fileName.replace(/\.[^/.]+$/, "").replace(/^[0-9]+[\s._-]+/, "").trim() || fileName;
+
+        return {
+          id: "local_pc_" + idx + "_" + Date.now(),
+          title: title,
+          artist: artist,
+          album: album,
+          fileBlob: item.file,
+          duration: 180,
+          bpm: 120,
+          source: "local"
+        };
+      });
+
+      scannedFolderTracks = tracks;
+      localMusicShownTracks = tracks;
+      if (badgeEl) badgeEl.textContent = tracks.length.toLocaleString() + "曲";
+      if (summaryEl) {
+        summaryEl.innerHTML = `<span style="color:#34d399;font-weight:700;"> PCフォルダから ${tracks.length.toLocaleString()}曲の読み込みが完了しました！</span> デッキ読込ボタンですぐに再生できます。`;
+      }
+
+      // Populate artist dropdown
+      if (artistSelect) {
+        const artistMap = {};
+        tracks.forEach(t => { artistMap[t.artist] = (artistMap[t.artist] || 0) + 1; });
+        const sorted = Object.keys(artistMap).sort().map(name => ({ name, count: artistMap[name] }));
+        artistSelect.innerHTML = `<option value="">すべてのアーティスト (${tracks.length.toLocaleString()}曲)</option>`;
+        sorted.forEach(a => {
+          const opt = document.createElement("option");
+          opt.value = a.name;
+          opt.textContent = `${a.name} (${a.count}曲)`;
+          artistSelect.appendChild(opt);
+        });
+      }
+
+      renderLocalMusicTable();
+    }
+
+    // iPhone Audio File Picker button in Local Tab
+    const btnPickIphoneLocal = document.getElementById("btnPickIphoneAudioFilesLocal");
+    if (btnPickIphoneLocal) {
+      btnPickIphoneLocal.addEventListener("click", () => {
+        modal.classList.add("hidden");
+        openMultiTrackFilePicker();
+      });
+    }
+  
+// Tab 1: Local synced Music / iTunes library controls
  const searchInput = document.getElementById("inputMusicLocalSearch");
  const artistSelect = document.getElementById("selectMusicLocalArtist");
  if (searchInput) {
