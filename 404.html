@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <script>
+    // GitHub Pages 404 handler: if user bookmarked root or subpath, redirect to /ddj-flx4-web/ immediately!
+    (function() {
+      var path = window.location.pathname;
+      if (!path.startsWith("/ddj-flx4-web")) {
+        window.location.replace("/ddj-flx4-web/" + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+ <meta name="apple-mobile-web-app-capable" content="yes" />
+ <meta name="mobile-web-app-capable" content="yes" />
+ <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+ <meta name="theme-color" content="#090b10" />
+ <link rel="manifest" href="manifest.json" />
+ <link rel="apple-touch-icon" href="icon-512.svg" />
+ <title>DDJ-FLX4 Web DJ Controller</title>
+ <link rel="stylesheet" href="styles.css?v=20261102b" />
+</head>
+<body>
+ <!-- File Inputs for Deck 1, Deck 2 & Auto DJ Playlist (iOS Safari Audio Optimized) -->
+ <input type="file" id="inputLocalMusicFolder" webkitdirectory directory multiple style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+  <input type="file" id="directFileDeck1" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+ <input type="file" id="directFileDeck2" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+ <input type="file" id="autoDjFileInput" multiple accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.aiff,.aif,.ogg" style="position:fixed;left:-9999px;top:-9999px;opacity:0.01;width:1px;height:1px;" />
+
+ <!-- ==================== 1. TOP HEADER BAR ==================== -->
+ <header class="top-bar">
+ <div class="top-left">
+ <span class="badge-web">WEB</span>
+ <span class="brand-title">DDJ-FLX4</span>
+ <button id="btnMidiStatus" class="status-pill midi-pill" title="実機DDJ-FLX4 / WebMIDI接続ステータス">
+ <span class="dot-green"></span> WebMIDI: Real DDJ-FLX4 Ready
+ </button>
+ <button id="btnAudioInit" class="status-pill audio-pill" title="クリックしてWeb Audio出力を有効化">
+ Audio Active
+ </button>
+ </div>
+
+ <div class="top-right">
+ <button id="btnQuickNickyRomero" class="hdr-btn btn-autodj-pro" title="David Guetta @ Tomorrowland 2026 / MITOMI TOKOTO @ ageHa / Nicky Romero @ Tomorrowland 2019 スタイルでAUTO DJ PROを開始！">
+ AUTO DJ PRO
+ </button>
+ <button id="btnOpenAutoDjModal" class="hdr-btn btn-demo-gradient" title="自由に曲を選んでAUTO DJセットリストを作成・設定">
+ 選曲 / セットリスト
+ </button>
+ <button id="btnOpenIphoneMusicModal" class="hdr-btn btn-apple-music" title="iPhoneのMusicアプリ・同期iTunesライブラリ・Apple Musicから曲を選ぶ">
+ Musicアプリ
+ </button>
+ <button id="btnDirectFile1" class="hdr-btn btn-load-d1" title="PC・iPhone内の音楽ファイルをDeck 1に読み込む">
+ Load Deck 1
+ </button>
+ <button id="btnDirectFile2" class="hdr-btn btn-load-d2" title="PC・iPhone内の音楽ファイルをDeck 2に読み込む">
+ Load Deck 2
+ </button>
+ <button id="btnOpenYoutubeModal" class="hdr-btn btn-yt" title="YouTube / YouTube Music から検索またはURLで追加">
+ ▶️ YouTube
+ </button>
+ <button id="btnOpenQrModal" class="hdr-btn btn-qr" title="iPhone・iPad・スマホで開くQRコード">
+ QR
+ </button>
+ <div class="rec-control-group" title="録画・録音モード切替（デフォルト: 画面＋音声録画）">
+ <select id="selectRecMode" class="rec-mode-select" aria-label="録画モード">
+ <option value="screen" selected> 画面＋音声</option>
+ <option value="display">️ タブ全体録画</option>
+ <option value="audio"> 音声のみ</option>
+ </select>
+ <button id="btnRecMix" class="hdr-btn btn-record" title="DJ画面＋高音質ミックス音声を録画・保存">
+ <span class="rec-dot"></span> <span id="recLabel">RECORD</span> <span id="recTimer"></span>
+ </button>
+ </div>
+ </div>
+ </header>
+
+ <!-- ==================== AUTO DJ PRO LIVE TELEMETRY BAR ==================== -->
+ <section class="autodj-live-bar hidden" id="autoDjLiveBar">
+ <div class="autodj-left">
+ <span class="autodj-live-badge" id="autoDjLiveBadge"> PRO ALL-STAR AUTO DJ</span>
+ <span class="autodj-phase-text" id="autoDjStatusText"> 原曲テンポベース＆ビート同期中...</span>
+ </div>
+ <div class="autodj-center">
+ <div class="autodj-progress-wrap">
+ <div class="autodj-progress-fill" id="autoDjProgressBar" style="width: 0%"></div>
+ </div>
+ <span class="autodj-bar-counter" id="autoDjBarCounter">BAR 1.1</span>
+ </div>
+ <div class="autodj-right">
+ <select id="selectAutoDjTempoModeLive" class="autodj-mini-select" title="テンポ制御モード切替">
+ <option value="smart_bpm" selected>スマートBPM（緩やか移行）</option>
+ <option value="adaptive">原曲速度ベース</option>
+ <option value="lock128">128 BPM フェス固定</option>
+ </select>
+ <select id="selectAutoDjTransBarsLive" class="autodj-mini-select" title="曲間の繋ぎ小節数切替">
+ <option value="8" selected>8小節切替</option>
+ <option value="4">4小節切替</option>
+ <option value="16">16小節ロング</option>
+ <option value="0">即座カット</option>
+ </select>
+ <select id="selectAutoDjStyleLive" class="autodj-mini-select" title="パフォーマンススタイル切替">
+ <option value="allstar" selected> PRO ALL-STAR (Guetta × MITOMI TOKOTO × Nicky)</option>
+ <option value="guetta"> David Guetta @ Tomorrowland 2026 (Future Rave・Echoスラム)</option>
+ <option value="tokoto">🪩 MITOMI TOKOTO @ ageHa (縦フェーダーカット＆Filter-Echo)</option>
+ <option value="nicky"> Nicky Romero @ Tomorrowland 2019 (Bootleg＆ループロール)</option>
+ <option value="festival"> FESTIVAL HYPE (ビルドアップ＆ドロップ)</option>
+ <option value="club">️ CLUB BASS-SWAP (原曲重視・EQミックス)</option>
+ <option value="scratch"> TURNTABLIST (スクラッチ＆ホットキュー)</option>
+ <option value="smooth"> SMOOTH LOUNGE (ロングブレンド)</option>
+ </select>
+ <button class="hdr-btn btn-qr" id="btnAutoDjPad5to8Toggle" title="4つ打ち追加ドラム＆パッド効果のON/OFF切替（デフォルトOFF：原曲そのままの音）">
+ 4つ打ち追加音: OFF
+ </button>
+ <button class="hdr-btn btn-apple-music" id="btnAutoDjOpenMusicLive" title="Musicアプリ / iTunesから曲を追加">
+ Music
+ </button>
+ <button class="hdr-btn btn-load-d1" id="btnAutoDjAddFilesLive" title="自動DJセットリストに音楽ファイルを追加">
+ 追加
+ </button>
+ <button class="hdr-btn btn-demo-gradient" id="btnAutoDjForceDrop" title="今すぐTomorrowland流ビルドアップ＆ドロップを発動！">
+ 今すぐDROP!
+ </button>
+ <button class="hdr-btn btn-record" id="btnAutoDjStop" title="自動DJモードを停止して手動操作に戻る">
+ ⏹ 停止
+ </button>
+ </div>
+ </section>
+
+ <!-- ==================== 2. SIDE-BY-SIDE DUAL WAVEFORM DISPLAY ==================== -->
+ <section class="dual-waveform-section">
+ <!-- DECK 1 WAVEFORM BOX (ORANGE THEME) -->
+ <div class="waveform-card deck1-wave-card">
+ <div class="wf-header">
+ <div class="wf-left-tags">
+ <span class="wf-deck-label d1-color">DECK 1</span>
+ <span class="wf-state-badge" id="lcdState1">EMPTY</span>
+ <span class="wf-bar-count-badge" id="waveBarCount1" title="小節.拍カウント (Beatgrid)">BAR 1.1</span>
+ <span class="wf-freq-badge" title="Rekordbox 3Band周波数カラー波形 (青:低音 / 橙:中音 / 白:高音)">3BAND</span>
+ </div>
+ <div class="wf-track-title" id="waveTitle1">曲未選択 — [ 選曲] / [Load Deck 1] / [YouTube] から曲を選んでください</div>
+ <div class="wf-time-info">
+ <span id="waveTime1">00:00.0</span> / <span id="waveRemain1">00:00.0</span>
+ </div>
+ </div>
+ <div class="wf-zoom-wrap">
+ <canvas id="zoomWave1"></canvas>
+ <div class="wf-center-playhead"></div>
+ </div>
+ <div class="wf-overview-wrap" title="クリックで曲の任意位置にシーク">
+ <canvas id="overviewWave1"></canvas>
+ </div>
+ </div>
+
+ <!-- DECK 2 WAVEFORM BOX (BLUE THEME) -->
+ <div class="waveform-card deck2-wave-card">
+ <div class="wf-header">
+ <div class="wf-left-tags">
+ <span class="wf-deck-label d2-color">DECK 2</span>
+ <span class="wf-state-badge" id="lcdState2">EMPTY</span>
+ <span class="wf-bar-count-badge" id="waveBarCount2" title="小節.拍カウント (Beatgrid)">BAR 1.1</span>
+ <span class="wf-freq-badge" title="Rekordbox 3Band周波数カラー波形 (青:低音 / 橙:中音 / 白:高音)">3BAND</span>
+ </div>
+ <div class="wf-track-title" id="waveTitle2">曲未選択 — [ 選曲] / [Load Deck 2] / [YouTube] から曲を選んでください</div>
+ <div class="wf-time-info">
+ <span id="waveTime2">00:00.0</span> / <span id="waveRemain2">00:00.0</span>
+ </div>
+ </div>
+ <div class="wf-zoom-wrap">
+ <canvas id="zoomWave2"></canvas>
+ <div class="wf-center-playhead"></div>
+ </div>
+ <div class="wf-overview-wrap" title="クリックで曲の任意位置にシーク">
+ <canvas id="overviewWave2"></canvas>
+ </div>
+ </div>
+ </section>
+
+ <!-- ==================== 3. CENTERED DDJ-FLX4 HARDWARE CONTROLLER ==================== -->
+ <main class="workspace-stage">
+ <div class="flx4-hardware-unit" id="flx4Console">
+
+ <!-- ==================== DECK 1 (LEFT - ORANGE ACCENT) ==================== -->
+ <section class="hw-deck deck-1" id="deckUnit1" data-deck="1">
+ <!-- Deck 1 Top Strip -->
+ <div class="deck-top-row">
+ <div class="deck-top-left">
+ <span class="deck-badge d1-badge">DECK 1</span>
+ <button class="deck-pill-btn" id="btnSync1" title="BPM・拍をDeck 2に同期 (Eキー)">SYNC</button>
+ <button class="deck-pill-btn active-d1" id="btnKeyLock1" title="Master Tempo">MASTER</button>
+ </div>
+
+ <div class="loop-group">
+ <button class="loop-btn" id="btnLoopIn1">IN</button>
+ <button class="loop-btn loop-4b-d1" id="btnLoop4Beat1">4 BEAT</button>
+ <button class="loop-btn" id="btnLoopOut1">OUT</button>
+ <button class="loop-btn" id="btnLoopExit1">EXIT</button>
+ </div>
+
+ <div class="bpm-readout-box">
+ <span class="bpm-lbl">BPM</span>
+ <span class="bpm-val" id="waveBpm1">124.00</span>
+ </div>
+ </div>
+
+ <!-- Deck 1 Middle Area: Jog Wheel (Center) + Tempo Slider Box (Right) -->
+ <div class="deck-mid-row deck1-mid-layout">
+ <div class="jog-container">
+ <div class="jog-wheel" id="jogWheel1" data-deck="1">
+ <div class="jog-texture-ring"></div>
+ <div class="jog-platter" id="jogPlatter1">
+ <div class="jog-dot d1-dot"></div>
+ </div>
+ <div class="jog-center-cap" id="jogCenterCap1" style="cursor:pointer;" title="クリックで中央表示モード切替（BPM / 残り時間 / 小節・拍カウント / ループ拍数）">
+ <span class="cap-title" id="jogLcdMode1">DECK 1</span>
+ <span class="cap-sub d1-color" id="lcdBpm1">READY</span>
+ </div>
+ </div>
+ </div>
+
+ <div class="tempo-box">
+ <div class="tempo-hdr">
+ <span>TEMPO</span>
+ <button class="tempo-range-mini" id="btnTempoRange1">±<span id="tempoRangeVal1">8</span>%</button>
+ </div>
+ <div class="tempo-pct d1-color" id="wavePitch1">+0.0%</div>
+ <div class="tempo-track-wrap">
+ <div class="tempo-center-tick"></div>
+ <input type="range" class="tempo-slider d1-slider" id="tempoSlider1" min="-1" max="1" step="0.001" value="0" title="ダブルクリックで0%にリセット" />
+ </div>
+ </div>
+ </div>
+
+ <!-- Deck 1 Bottom Area: Transport Buttons (Left) + 8 Performance Pads (Right) -->
+ <div class="deck-bot-row deck1-bot-layout">
+ <div class="transport-pair">
+ <div class="trans-btn-wrap">
+ <button class="circle-trans-btn cue-circle d1-cue" id="btnCue1" title="CUE (Wキー)">CUE</button>
+ <span class="trans-sub">SHIFT: SET</span>
+ </div>
+ <div class="trans-btn-wrap">
+ <button class="circle-trans-btn play-circle d1-play" id="btnPlay1" title="PLAY/PAUSE (Q / Spaceキー)">▶</button>
+ <span class="trans-sub">PLAY/PAUSE</span>
+ </div>
+ </div>
+
+ <div class="pads-box">
+ <div class="pad-modes-bar" data-deck="1">
+ <button class="pad-mode-tab active-d1" data-mode="hotcue" data-deck="1">HOT CUE</button>
+ <button class="pad-mode-tab" data-mode="padfx" data-deck="1">PAD FX</button>
+ <button class="pad-mode-tab" data-mode="beatjump" data-deck="1">BEAT JUMP</button>
+ <button class="pad-mode-tab" data-mode="sampler" data-deck="1">SAMPLER</button>
+ </div>
+ <div class="pads-grid-8" id="padsGrid1" data-deck="1">
+ <button class="hw-pad d1-pad" data-pad="0"><span class="pad-title">1</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="1"><span class="pad-title">2</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="2"><span class="pad-title">3</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="3"><span class="pad-title">4</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="4"><span class="pad-title">5</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="5"><span class="pad-title">6</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="6"><span class="pad-title">7</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d1-pad" data-pad="7"><span class="pad-title">8</span><span class="pad-sub"></span></button>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ==================== CENTER MIXER (DDJ-FLX4) ==================== -->
+ <section class="hw-mixer" id="mixerUnit">
+ <!-- Top Row: Sampler Vol & Master Level -->
+ <div class="mixer-top-knobs">
+ <div class="knob-group">
+ <span class="knob-top-lbl">SAMPLER VOL</span>
+ <div class="rotary-knob white-ptr" id="knobSampler" data-param="sampler" data-min="0" data-max="1.5" data-val="1.0" data-default="1.0"></div>
+ <span class="knob-bot-lbl">0 dB</span>
+ </div>
+ <div class="knob-group">
+ <span class="knob-top-lbl">MASTER LEVEL</span>
+ <div class="rotary-knob white-ptr" id="knobMaster" data-param="master" data-min="0" data-max="1.5" data-val="1.0" data-default="1.0"></div>
+ <span class="knob-bot-lbl">0 dB</span>
+ </div>
+ </div>
+
+ <!-- Middle EQ & Filter Strips: CH1 | Center VU Meter | CH2 -->
+ <div class="mixer-eq-section">
+ <!-- CH 1 Knobs (Orange) -->
+ <div class="ch-knobs-col">
+ <span class="ch-col-title d1-color">CH 1</span>
+ <div class="knob-group">
+ <div class="rotary-knob d1-ptr" id="knobTrim1" data-param="trim1" data-min="-24" data-max="12" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">TRIM</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d1-ptr" id="knobHi1" data-param="hi1" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">HI</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d1-ptr" id="knobMid1" data-param="mid1" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">MID</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d1-ptr" id="knobLow1" data-param="low1" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">LOW</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d1-ptr" id="knobCfx1" data-param="cfx1" data-min="-100" data-max="100" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl d1-color">COLOR FX</span>
+ </div>
+ </div>
+
+ <!-- Center Dual Vertical Level Meter -->
+ <div class="center-vu-wrapper">
+ <div class="vu-strip" id="vuCol1">
+ <div class="vu-seg red" data-lvl="7"></div>
+ <div class="vu-seg orange" data-lvl="6"></div>
+ <div class="vu-seg orange" data-lvl="5"></div>
+ <div class="vu-seg green" data-lvl="4"></div>
+ <div class="vu-seg green" data-lvl="3"></div>
+ <div class="vu-seg green" data-lvl="2"></div>
+ <div class="vu-seg green" data-lvl="1"></div>
+ <div class="vu-seg green" data-lvl="0"></div>
+ </div>
+ <div class="vu-strip" id="vuCol2">
+ <div class="vu-seg red" data-lvl="7"></div>
+ <div class="vu-seg orange" data-lvl="6"></div>
+ <div class="vu-seg orange" data-lvl="5"></div>
+ <div class="vu-seg green" data-lvl="4"></div>
+ <div class="vu-seg green" data-lvl="3"></div>
+ <div class="vu-seg green" data-lvl="2"></div>
+ <div class="vu-seg green" data-lvl="1"></div>
+ <div class="vu-seg green" data-lvl="0"></div>
+ </div>
+ </div>
+
+ <!-- CH 2 Knobs (Blue) -->
+ <div class="ch-knobs-col">
+ <span class="ch-col-title d2-color">CH 2</span>
+ <div class="knob-group">
+ <div class="rotary-knob d2-ptr" id="knobTrim2" data-param="trim2" data-min="-24" data-max="12" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">TRIM</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d2-ptr" id="knobHi2" data-param="hi2" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">HI</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d2-ptr" id="knobMid2" data-param="mid2" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">MID</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d2-ptr" id="knobLow2" data-param="low2" data-min="-26" data-max="6" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl">LOW</span>
+ </div>
+ <div class="knob-group">
+ <div class="rotary-knob d2-ptr" id="knobCfx2" data-param="cfx2" data-min="-100" data-max="100" data-val="0" data-default="0"></div>
+ <span class="knob-bot-lbl d2-color">COLOR FX</span>
+ </div>
+ </div>
+ </div>
+
+ <!-- Smart Buttons Row: SMART CFX & SMART FADER -->
+ <div class="smart-btns-row">
+ <button class="smart-toggle-btn" id="btnSmartCfx" title="SMART CFX: COLOR FXノブでフィルターと空間エフェクトを同時制御">
+ SMART CFX
+ </button>
+ <button class="smart-toggle-btn" id="btnSmartFader" title="SMART FADER: クロスフェーダー操作だけでBPM同調・低域入れ替えを自動化">
+ SMART FADER
+ </button>
+ </div>
+
+ <!-- Channel Volume Faders Box -->
+ <div class="ch-faders-box">
+ <div class="v-fader-col">
+ <input type="range" class="v-fader d1-v-fader" id="chFader1" min="0" max="1" step="0.005" value="0.85" />
+ <span class="v-fader-lbl">CH 1</span>
+ </div>
+ <div class="v-fader-col">
+ <input type="range" class="v-fader d2-v-fader" id="chFader2" min="0" max="1" step="0.005" value="0.85" />
+ <span class="v-fader-lbl">CH 2</span>
+ </div>
+ </div>
+
+ <!-- Crossfader Box -->
+ <div class="crossfader-box">
+ <div class="xf-labels">
+ <span class="d1-color">DECK 1</span>
+ <span>CROSSFADER</span>
+ <span class="d2-color">DECK 2</span>
+ </div>
+ <div class="xf-slider-wrap">
+ <input type="range" class="xf-slider" id="crossfader" min="-1" max="1" step="0.005" value="0" title="ダブルクリックで中央にリセット" />
+ </div>
+ </div>
+ </section>
+
+ <!-- ==================== DECK 2 (RIGHT - BLUE ACCENT, SYMMETRIC MIRROR LAYOUT) ==================== -->
+ <section class="hw-deck deck-2" id="deckUnit2" data-deck="2">
+ <!-- Deck 2 Top Strip -->
+ <div class="deck-top-row">
+ <div class="deck-top-left">
+ <span class="deck-badge d2-badge">DECK 2</span>
+ <button class="deck-pill-btn" id="btnSync2" title="BPM・拍をDeck 1に同期 (Iキー)">SYNC</button>
+ <button class="deck-pill-btn active-d2" id="btnKeyLock2" title="Master Tempo">MASTER</button>
+ </div>
+
+ <div class="loop-group">
+ <button class="loop-btn" id="btnLoopIn2">IN</button>
+ <button class="loop-btn loop-4b-d2" id="btnLoop4Beat2">4 BEAT</button>
+ <button class="loop-btn" id="btnLoopOut2">OUT</button>
+ <button class="loop-btn" id="btnLoopExit2">EXIT</button>
+ </div>
+
+ <div class="bpm-readout-box">
+ <span class="bpm-lbl">BPM</span>
+ <span class="bpm-val" id="waveBpm2">128.00</span>
+ </div>
+ </div>
+
+ <!-- Deck 2 Middle Area: Tempo Slider Box (Left) + Jog Wheel (Center/Right) -->
+ <div class="deck-mid-row deck2-mid-layout">
+ <div class="tempo-box">
+ <div class="tempo-hdr">
+ <span>TEMPO</span>
+ <button class="tempo-range-mini" id="btnTempoRange2">±<span id="tempoRangeVal2">8</span>%</button>
+ </div>
+ <div class="tempo-pct d2-color" id="wavePitch2">+0.0%</div>
+ <div class="tempo-track-wrap">
+ <div class="tempo-center-tick"></div>
+ <input type="range" class="tempo-slider d2-slider" id="tempoSlider2" min="-1" max="1" step="0.001" value="0" title="ダブルクリックで0%にリセット" />
+ </div>
+ </div>
+
+ <div class="jog-container">
+ <div class="jog-wheel" id="jogWheel2" data-deck="2">
+ <div class="jog-texture-ring"></div>
+ <div class="jog-platter" id="jogPlatter2">
+ <div class="jog-dot d2-dot"></div>
+ </div>
+ <div class="jog-center-cap" id="jogCenterCap2" style="cursor:pointer;" title="クリックで中央表示モード切替（BPM / 残り時間 / 小節・拍カウント / ループ拍数）">
+ <span class="cap-title" id="jogLcdMode2">DECK 2</span>
+ <span class="cap-sub d2-color" id="lcdBpm2">READY</span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Deck 2 Bottom Area: 8 Performance Pads (Left) + Transport Buttons (Right) -->
+ <div class="deck-bot-row deck2-bot-layout">
+ <div class="pads-box">
+ <div class="pad-modes-bar" data-deck="2">
+ <button class="pad-mode-tab active-d2" data-mode="hotcue" data-deck="2">HOT CUE</button>
+ <button class="pad-mode-tab" data-mode="padfx" data-deck="2">PAD FX</button>
+ <button class="pad-mode-tab" data-mode="beatjump" data-deck="2">BEAT JUMP</button>
+ <button class="pad-mode-tab" data-mode="sampler" data-deck="2">SAMPLER</button>
+ </div>
+ <div class="pads-grid-8" id="padsGrid2" data-deck="2">
+ <button class="hw-pad d2-pad" data-pad="0"><span class="pad-title">1</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="1"><span class="pad-title">2</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="2"><span class="pad-title">3</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="3"><span class="pad-title">4</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="4"><span class="pad-title">5</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="5"><span class="pad-title">6</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="6"><span class="pad-title">7</span><span class="pad-sub"></span></button>
+ <button class="hw-pad d2-pad" data-pad="7"><span class="pad-title">8</span><span class="pad-sub"></span></button>
+ </div>
+ </div>
+
+ <div class="transport-pair">
+ <div class="trans-btn-wrap">
+ <button class="circle-trans-btn cue-circle d2-cue" id="btnCue2" title="CUE (Oキー)">CUE</button>
+ <span class="trans-sub">SHIFT: SET</span>
+ </div>
+ <div class="trans-btn-wrap">
+ <button class="circle-trans-btn play-circle d2-play" id="btnPlay2" title="PLAY/PAUSE (Pキー)">▶</button>
+ <span class="trans-sub">PLAY/PAUSE</span>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ </div>
+ </main>
+
+ <!-- ==================== MODAL: YOUTUBE & TRACK LIBRARY LOADER ==================== -->
+ <div class="modal-backdrop hidden" id="youtubeModal">
+ <div class="modal-card wide-modal">
+ <div class="modal-header">
+ <h2>▶️ YouTube / YouTube Music 音源抽出 & 選曲ライブラリ</h2>
+ <button class="modal-close" id="btnCloseYoutubeModal"></button>
+ </div>
+ <div class="modal-body">
+ <div class="yt-search-bar">
+ <input type="text" id="inputYoutubeQuery" placeholder="YouTube / YouTube Music の曲名・アーティスト名 または URLを入力..." />
+ <button class="hdr-btn btn-demo-gradient" id="btnYoutubeSearch"> 検索</button>
+ <button class="hdr-btn btn-autodj-pro" id="btnYtDirectQueue" title="URLまたは検索ワードの1曲目を直接Auto DJへ追加"> 即Auto DJへ</button>
+ <button class="hdr-btn btn-load-d1" id="btnYtDirectD1" title="URLまたは検索ワードの1曲目を直接Deck 1へ読込"> Deck 1へ</button>
+ <button class="hdr-btn btn-load-d2" id="btnYtDirectD2" title="URLまたは検索ワードの1曲目を直接Deck 2へ読込"> Deck 2へ</button>
+ </div>
+ <div class="yt-trim-bar">
+ <span>切り抜き範囲 (任意):</span>
+ <input type="text" id="inputYtStart" placeholder="開始 00:00" class="time-in" />
+ <span>〜</span>
+ <input type="text" id="inputYtEnd" placeholder="終了 03:30" class="time-in" />
+ </div>
+
+ <div id="ytJobBox" class="yt-job-status hidden">
+ <span id="ytJobText">YouTubeから抽出中...</span>
+ <div class="yt-prog-track"><div class="yt-prog-fill" id="ytJobBar" style="width:0%"></div></div>
+ <span id="ytJobPct">0%</span>
+ </div>
+
+ <div class="yt-results-list" id="ytResultsGrid"></div>
+
+ <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;">
+ <h3 style="margin:0;font-size:13px;color:#9ca3af;"> 保存済みトラック履歴（自由に選んでデッキやAuto DJへ追加できます）</h3>
+ <button class="hdr-btn btn-record" id="btnClearLibModal" style="padding:3px 8px;font-size:10px;">️ 保存履歴をすべて削除</button>
+ </div>
+ <div class="lib-table-wrap">
+ <table class="lib-table">
+ <thead>
+ <tr>
+ <th>選曲 / 追加</th>
+ <th>タイトル</th>
+ <th>アーティスト</th>
+ <th>BPM</th>
+ <th>長さ</th>
+ <th style="width:55px;">削除</th>
+ </tr>
+ </thead>
+ <tbody id="trackTableBody"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ==================== MODAL: iPad / SMARTPHONE QR CODE ==================== -->
+ <div class="modal-backdrop hidden" id="qrModal">
+ <div class="modal-card">
+ <div class="modal-header">
+ <h2> iPad・スマートフォンで開く</h2>
+ <button class="modal-close" id="btnCloseQrModal"></button>
+ </div>
+ <div class="modal-body qr-modal-grid">
+ <div class="qr-card">
+ <h3> 同じWi-Fi内で接続</h3>
+ <p>PCと同じWi-FiのiPad・スマホで読み取ってください</p>
+ <div class="qr-img-box"><img id="imgLanQr" alt="LAN QR Code" /></div>
+ <a id="linkLanUrl" href="#" target="_blank" class="qr-url-link">http://192.168.x.x:8090</a>
+ </div>
+ <div class="qr-card">
+ <h3> 外出先・別回線で接続 (Cloudflare Tunnel)</h3>
+ <p>HTTPS経由でどこからでもアクセスできます</p>
+ <div class="qr-img-box" id="boxTunnelQr">
+ <button class="hdr-btn btn-demo-gradient" id="btnStartTunnel"> URLを発行</button>
+ </div>
+ <a id="linkTunnelUrl" href="#" target="_blank" class="qr-url-link">未起動</a>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ==================== MODAL: AUTO DJ PRO SETUP & PERFORMANCE ==================== -->
+ <div class="modal-backdrop hidden" id="autoDjModal">
+ <div class="modal-card wide-modal">
+ <div class="modal-header">
+ <h2> AUTO DJ PRO — Guetta TML 2026 × MITOMI TOKOTO ageHa × Nicky Romero TML 2019</h2>
+ <button class="modal-close" id="btnCloseAutoDjModal"></button>
+ </div>
+ <div class="modal-body autodj-modal-body">
+ <div class="autodj-hero-box">
+ <div class="autodj-hero-info">
+ <h3> 原曲速度ベース × 世界トップDJ 3大プレイ方式（Guetta・MITOMI TOKOTO・Nicky Romero）搭載！</h3>
+ <p>
+ 各曲の本来のテンポ（原曲BPM・<code>+0.0%</code>）をベースに再生し、ミックス区間のみ <code>MASTER TEMPO</code> で滑らかに速度同調。<strong>David Guetta (Tomorrowland 2026 Future Rave・3/4拍Echo-Freezeスラム)</strong>、<strong>MITOMI TOKOTO (ageHa 縦フェーダー調合・Filter+Echo引き＆カットイン)</strong>、<strong>Nicky Romero (Tomorrowland 2019 Bootleg＆ループロール)</strong> を自動展開または個別選択できます。
+ </p>
+ </div>
+ <div class="autodj-file-btns">
+ <button class="hdr-btn btn-apple-music large-cta" id="btnAutoDjOpenIphoneMusic">
+ iPhone Musicアプリ / iTunesから曲を選ぶ
+ </button>
+ <button class="hdr-btn btn-autodj-pro large-cta" id="btnAutoDjSelectFiles">
+ PC・iPhoneファイルから曲を選択 (複数可)
+ </button>
+ <button class="hdr-btn btn-yt" id="btnAutoDjOpenYt">
+ ▶️ YouTube / YT Music から検索・追加
+ </button>
+ </div>
+ </div>
+
+ <div class="autodj-settings-grid">
+ <div class="autodj-setting-item">
+ <label>テンポ（速度）コントロール方式</label>
+ <select id="selectAutoDjTempoMode">
+ <option value="smart_bpm" selected>スマートBPM（推奨：原曲速度ベース・急激なBPM変化を抑制＆ハーフテンポ対応）</option>
+ <option value="adaptive">原曲速度ベース＋必要時のみ自動変速（通常は原曲1.0x速度・曲間ミックス時のみ滑らか同期）</option>
+ <option value="lock128">128.0 BPM フェス固定（全曲を128 BPMに統一）</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>パフォーマンス・スタイル</label>
+ <select id="selectAutoDjStyle">
+ <option value="allstar" selected>PRO ALL-STAR（David Guetta TML26 MITOMI TOKOTO ageHa Nicky Romero TML19 を自動展開！）</option>
+ <option value="guetta">David Guetta @ Tomorrowland 2026（Future Rave / Afro-Tech・アカペラ重ね・3/4拍Echo-Freezeスラムドロップ）</option>
+ <option value="tokoto">MITOMI TOKOTO @ ageHa（Pioneer DJM縦フェーダー調合・Filter+1/2拍Echo引き・リズミック縦カットイン＆重低音ドロップ）</option>
+ <option value="nicky">Nicky Romero @ Tomorrowland 2019（Bootleg重ね＋CDJループロール＋1拍スポットライト＋ドロップ）</option>
+ <option value="festival">FESTIVAL HYPE (ループロール＋フィルタービルドアップ＋ドロップ)</option>
+ <option value="club">CLUB BASS-SWAP (原曲ドラム重視・3バンドEQベーススワップ)</option>
+ <option value="scratch">TURNTABLIST (スクラッチ＋ホットキュー＋ビートジャグリング)</option>
+ <option value="smooth">SMOOTH LOUNGE (ディープEQロングブレンド＋空間エコー)</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>1曲あたりの再生尺＆トランジション周期（構成モード）</label>
+ <select id="selectAutoDjCycleBars">
+ <option value="club" selected>Club Dancefloor（推奨：ドロップ／サビ16〜32小節をしっかり踊らせる2〜3分構成・64〜80小節）</option>
+ <option value="radio">Radio Edit（1分未満のショートダイジェスト・32小節ハイライト）</option>
+ <option value="extended">Extended Mix（フル尺近くまでじっくり展開・96小節〜）</option>
+ <option value="64">2番サビ・ロング展開（64小節 / 約2分強）</option>
+ <option value="16">クイック・ハイライト展開（16小節 / 約30秒ショートミックス）</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>トランジションの長さ（曲間の繋ぎ小節数）</label>
+ <select id="selectAutoDjTransitionBars">
+ <option value="8" selected>8小節（約16秒：プロDJ標準・サビ終わりの美しい移行）</option>
+ <option value="4">4小節（約8秒：タイトでスピーディな移行）</option>
+ <option value="16">16小節（約32秒：ロングミックス・フェス向け展開）</option>
+ <option value="0">0小節（即座にカットイン・ブレイク切り替え）</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>低域EQ制御＆セリフ被り防止（アイソレーター・Phrase Sync）</label>
+ <select id="selectAutoDjEqMode">
+ <option value="low_swap" selected>完全LOWスワップ＋セリフ被り防止ON（低音ぶつかりゼロ・1拍エコーフリーズ飛ばし）</option>
+ <option value="quick_cut">クイックLOWカット（ドロップ直前で瞬間的に低音を切り替え）</option>
+ <option value="stem_blend">ステム調合（中高音ボーカル重ね＋ベース抜き差し）</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>曲の繋ぎ位置＆マッシュアップ方式</label>
+ <select id="selectAutoDjMixInStrategy">
+ <option value="smart_mashup" selected>スマート・マッシュアップ＆ライブレイヤリング（推奨：歌詞・リズム考慮のビルドアップ重ね ドロップ着地）</option>
+ <option value="drop_direct">サビ・ドロップ直結（前曲から次曲のサビ／ドロップへ即座にアタック）</option>
+ <option value="buildup_layer">ビルドアップ・レイヤリング（次曲のビルドアップを前曲のリズム上に重ねて展開）</option>
+ <option value="phrase_intro">Aメロ・歌い出し（イントロを飛ばして歌い出しから再生）</option>
+ <option value="full_intro">曲頭から（0:00のイントロから再生）</option>
+ </select>
+ </div>
+ <div class="autodj-setting-item">
+ <label>4つ打ち追加音＆パッド効果（デフォルトOFF：原曲のみ）</label>
+ <select id="selectAutoDjPad5to8Fx">
+ <option value="off" selected>OFF（デフォルト：4つ打ち追加音なし・原曲本来の音のみでプロDJミックス）</option>
+ <option value="kick">4つ打ちキックのみ ON（PAD 1〜4：原曲に4つ打ちキックを追加・PAD 5〜8はOFF）</option>
+ <option value="full">フルEDMドラム ON（PAD 1〜8：4つ打ちキック＋裏拍ハイハット・スネアロール追加）</option>
+ </select>
+ </div>
+ </div>
+
+ <div class="autodj-playlist-section">
+ <div class="autodj-playlist-hdr">
+ <span>AUTO DJ セットリスト（選んだ順番通りに演奏されます）</span>
+ <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+ <button class="hdr-btn btn-demo-gradient" id="btnSortSmartBpm" title="BPMの急激な段差を解消し、緩やかなテンポ推移（山谷カーブ）に自動整列します">BPMスマート整列</button>
+ <button class="hdr-btn btn-load-d2" id="btnSortDisneyStory" title="ヴィランズ・ワールド パレード アンセム（ジャンボリミッキー等）の物語構成順に自動整列します">テーマ別ストーリー整列</button>
+ <span id="autoDjTrackCount" style="color:#f97316;font-weight:800;margin-left:4px;">0曲 選択中</span>
+ <button class="hdr-btn btn-record" id="btnClearAutoDjQueue" style="padding:2px 8px;font-size:10px;">空にする</button>
+ </div>
+ </div>
+ <div class="lib-table-wrap">
+ <table class="lib-table">
+ <thead>
+ <tr>
+ <th style="width:45px;">順番</th>
+ <th>タイトル</th>
+ <th>ソース</th>
+ <th style="width:95px;">原曲BPM</th>
+ <th style="width:65px;">長さ</th>
+ <th style="width:185px;">手動読込 / 並替 / 除外</th>
+ </tr>
+ </thead>
+ <tbody id="autoDjPlaylistBody"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="autodj-playlist-section" id="savedLibrarySection" style="margin-top:10px;">
+ <div class="autodj-playlist-hdr">
+ <span> 保存済みダウンロード曲から選んで追加（クリックでセットリストに追加）</span>
+ <div style="display:flex;gap:8px;align-items:center;">
+ <button class="hdr-btn btn-load-d1" id="btnAddAllSavedToQueue" style="padding:2px 8px;font-size:10px;"> 全曲をセットリストへ追加</button>
+ <button class="hdr-btn btn-record" id="btnClearSavedLibrary" style="padding:2px 8px;font-size:10px;">️ 保存履歴を全削除</button>
+ </div>
+ </div>
+ <div class="lib-table-wrap" style="max-height:135px;">
+ <table class="lib-table">
+ <tbody id="savedLibraryBody"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="autodj-modal-footer" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+ <button class="hdr-btn btn-qr" id="btnUseManualMode" style="padding:11px 18px;font-size:13px;font-weight:800;">
+ ️ 手動DJモードでプレイ（自分でミックス）
+ </button>
+ <button class="hdr-btn btn-autodj-start-giant" id="btnStartAutoDjNow">
+ 選んだセットリストで AUTO DJ PRO パフォーマンス開始！
+ </button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ==================== MODAL: iPhone MUSIC APP / iTUNES / APPLE MUSIC PICKER ==================== -->
+ <div class="modal-backdrop hidden" id="iphoneMusicModal">
+ <div class="modal-card wide-modal">
+ <div class="modal-header">
+ <h2> iPhone「ミュージック」アプリ / iTunes ライブラリ選曲</h2>
+ <button class="modal-close" id="btnCloseIphoneMusicModal"></button>
+ </div>
+ <div class="modal-body">
+ <div class="music-tabs-bar">
+ <button class="music-tab-btn active" data-mtab="local">
+ Musicライブラリ (<span id="musicLocalTotalBadge">読込中</span>)
+ </button>
+ <button class="music-tab-btn" data-mtab="apple">
+ iPhone Music共有リンク / Apple Music検索
+ </button>
+ <button class="music-tab-btn" data-mtab="shortcut">
+ iPhone本体「ミュージック」選択画面から送る
+ </button>
+ </div>
+
+ <!-- TAB 1: SYNCED iTUNES / MUSIC LIBRARY -->
+ <div class="music-pane" id="musicPane_local">
+       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="hdr-btn btn-demo-gradient" id="btnPickLocalMusicFolder" style="padding:6px 14px;font-size:12px;font-weight:700;">
+          PC内のMusic / iTunesフォルダを選択して一括読込
+        </button>
+        <button class="hdr-btn btn-autodj-pro" id="btnPickIphoneAudioFilesLocal" style="padding:6px 14px;font-size:12px;font-weight:700;">
+          iPhone内の音源ファイルを選択（ファイル / iCloud）
+        </button>
+        <a href="http://192.168.68.58:8090" target="_blank" class="hdr-btn btn-load-d2" id="linkLocalServerOpen" style="padding:6px 12px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">
+          ローカルPCサーバー (127.0.0.1:8090) で開く
+        </a>
+      </div>
+      <div class="music-filter-bar">
+ <input type="text" id="inputMusicLocalSearch" placeholder=" 曲名・アーティスト名・アルバム名で検索 (iPhone同期 / iTunesライブラリ)..." />
+ <select id="selectMusicLocalArtist">
+ <option value="">すべてのアーティスト</option>
+ </select>
+ <button class="hdr-btn btn-autodj-pro" id="btnMusicAddShownToQueue" title="表示中の曲をまとめてAuto DJセットリストへ追加">
+ 表示中をまとめてAuto DJへ
+ </button>
+ <button class="hdr-btn btn-qr" id="btnMusicRefreshLocal" title="Musicフォルダを再スキャン"></button>
+ </div>
+ <div style="font-size:11px;color:#9ca3af;margin-bottom:6px;" id="musicLocalSummary">
+ iTunes / Music フォルダ内の曲をiPhone・PCどちらからでもワンタップで直接選曲・再生できます。
+ </div>
+ <div class="lib-table-wrap" style="max-height:310px;">
+ <table class="lib-table">
+ <thead>
+ <tr>
+ <th style="width:185px;">選曲 / デッキ読込</th>
+ <th>曲名</th>
+ <th>アーティスト</th>
+ <th>アルバム</th>
+ </tr>
+ </thead>
+ <tbody id="musicLocalTableBody"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- TAB 2: iPhone APPLE MUSIC SHARE URL & CATALOG SEARCH -->
+ <div class="music-pane hidden" id="musicPane_apple">
+ <div class="apple-share-box">
+ <h4> iPhone「ミュージック」アプリの曲・プレイリストをそのまま追加</h4>
+ <div style="font-size:11px;color:#d1d5db;margin-bottom:8px;">
+ iPhoneの<strong>「ミュージック」</strong>アプリで曲やプレイリストの <strong>「…」「共有」「コピー」</strong> を押してから、下の<strong>「 貼り付けて追加」</strong>をタップしてください（ライブラリに同期済みの曲は瞬時に直接読込、ストリーミング曲も自動取得します）。
+ </div>
+ <div class="yt-search-bar" style="margin-bottom:0;">
+ <input type="text" id="inputAppleShareUrl" placeholder="https://music.apple.com/... (単曲・アルバム・プレイリストURL または 曲名)" />
+ <button class="hdr-btn btn-apple-music" id="btnPasteAppleUrl"> 貼り付けて追加</button>
+ <button class="hdr-btn btn-autodj-pro" id="btnResolveAppleUrl"> Auto DJへ追加</button>
+ </div>
+ </div>
+
+ <div class="yt-search-bar">
+ <input type="text" id="inputAppleCatalogSearch" placeholder=" Apple Music カタログから曲名・アーティスト名で検索..." />
+ <button class="hdr-btn btn-apple-music" id="btnAppleCatalogSearch"> Apple Music検索</button>
+ </div>
+
+ <div id="appleMusicStatusBox" class="yt-job-status hidden">
+ <span id="appleMusicStatusText">Apple Music曲を準備中...</span>
+ </div>
+
+ <div class="yt-results-list" id="appleCatalogResultsGrid" style="max-height:250px;"></div>
+ </div>
+
+ <!-- TAB 3: NATIVE iPhone SHORTCUTS BRIDGE & DIRECT AUDIO FILE PICKER -->
+ <div class="music-pane hidden" id="musicPane_shortcut">
+ <div class="shortcut-guide-card">
+ <h3 style="margin:0 0 8px;color:#fda4af;font-size:14px;"> iPhone本体のネイティブ「ミュージック」選択画面を使う方法</h3>
+ <p style="margin:0 0 8px;">
+ iOSのセキュリティ仕様上、Safari標準のファイル選択は「ファイル」アプリを開きます。iPhone純正の<strong>「ミュージック」アプリの曲選択画面（プレイリスト・全曲一覧）</strong>を直接開いて複数曲を選ぶには、以下のいずれかをご利用いただけます：
+ </p>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+ <button class="hdr-btn btn-autodj-pro large-cta" id="btnIphoneDirectAudioFiles">
+ iPhone「ファイル / iCloud」内の音源 (.m4a / .mp3) を複数選択
+ </button>
+ </div>
+ <hr style="border:none;border-top:1px solid #242936;margin:10px 0;" />
+ <strong> ワンタップでiPhone「ミュージック」ピッカーを開くショートカット設定（初回30秒のみ）：</strong>
+ <ol style="margin:6px 0 8px 18px;padding:0;">
+ <li>iPhoneの標準<strong>「ショートカット」</strong>アプリを開き、右上の<strong>「＋」</strong>をタップ</li>
+ <li>アクション<strong>「ミュージックを選択」</strong>を追加（「複数選択」をONにすると何曲でも一括選択可能！）</li>
+ <li>アクション<strong>「URLを開く」</strong>を追加し、以下のURLの末尾にマジック変数<strong>「選択したミュージック（タイトル）」</strong>を繋げます：</li>
+ </ol>
+ <code class="shortcut-url-code" id="shortcutBridgeUrlDisplay">http://127.0.0.1:8090/?iphone_music=</code>
+ <button class="hdr-btn btn-load-d2" id="btnCopyShortcutUrl" style="padding:4px 10px;font-size:11px;"> 連携ベースURLをコピー</button>
+ <span id="copyShortcutUrlMsg" style="font-size:11px;color:#34d399;margin-left:8px;"></span>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ==================== MODAL: RECORDING PREVIEW & SAVE ==================== -->
+ <div class="modal-backdrop hidden" id="recResultModal">
+ <div class="modal-card rec-result-card">
+ <div class="modal-header">
+ <h2 id="recResultTitle">画面＋音声の録画が完了しました</h2>
+ <button class="modal-close" id="btnCloseRecResultModal"></button>
+ </div>
+ <div class="modal-body rec-result-body">
+ <div class="rec-preview-wrap" id="recPreviewContainer"></div>
+ <div class="rec-result-meta" id="recResultMeta"></div>
+ <div class="rec-result-actions">
+ <a class="hdr-btn btn-autodj-pro large-cta" id="btnRecDownloadLink" href="#" download="DDJ_FLX4_Video.mp4">
+ ファイルを保存 (ダウンロード)
+ </a>
+ <button class="hdr-btn btn-apple-music large-cta hidden" id="btnRecShareSave">
+ 写真アプリ / ファイルへ保存 (共有)
+ </button>
+ <button class="hdr-btn btn-qr large-cta" id="btnRecDoneClose">
+ 閉じる
+ </button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <script src="audio_engine.js?v=20261107a"></script>
+ <script src="ui_controller.js?v=20261107f"></script>
+</body>
+</html>
