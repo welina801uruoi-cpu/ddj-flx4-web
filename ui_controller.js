@@ -634,6 +634,24 @@
  });
  }
 
+ const isIOSClient =
+    typeof navigator !== "undefined" &&
+    (/iPad|iPhone|iPod/.test(navigator.userAgent || "") ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+  const safeMaxSec = isIOSClient ? 600 : 900;
+  function withSafeDecodeUrl(u) {
+    if (!u) return u;
+    if (!u.startsWith("/") && !u.includes("/media/")) return u;
+    const qIdx = u.indexOf("?");
+    let pathPart = qIdx >= 0 ? u.slice(0, qIdx) : u;
+    const queryPart = qIdx >= 0 ? u.slice(qIdx + 1) : "";
+    if (pathPart.includes("#")) {
+      pathPart = pathPart.replace(/#/g, "%23");
+    }
+    const sep = queryPart ? `&max_sec=${safeMaxSec}` : `?max_sec=${safeMaxSec}`;
+    return queryPart ? `${pathPart}?${queryPart}${queryPart.includes("max_sec=") ? "" : sep}` : `${pathPart}${sep}`;
+  }
+
  function stripId3v2Header(arrBuf) {
     try {
       const u8 = new Uint8Array(arrBuf);
@@ -831,23 +849,6 @@
  deck.unloadTrack();
  await new Promise((r) => setTimeout(r, 16));
  }
-
- const isIOSClient =
- /iPad|iPhone|iPod/.test(navigator.userAgent || "") ||
- (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
- const safeMaxSec = isIOSClient ? 600 : 900;
- const withSafeDecodeUrl = (u) => {
- if (!u) return u;
- if (!u.startsWith("/") && !u.includes("/media/")) return u;
- const qIdx = u.indexOf("?");
- let pathPart = qIdx >= 0 ? u.slice(0, qIdx) : u;
- const queryPart = qIdx >= 0 ? u.slice(qIdx + 1) : "";
- if (pathPart.includes("#")) {
- pathPart = pathPart.replace(/#/g, "%23");
- }
- const sep = queryPart ? `&max_sec=${safeMaxSec}` : `?max_sec=${safeMaxSec}`;
- return queryPart ? `${pathPart}?${queryPart}${queryPart.includes("max_sec=") ? "" : sep}` : `${pathPart}${sep}`;
- };
 
  let audioBuffer = null;
  if (track.fileBlob) {
