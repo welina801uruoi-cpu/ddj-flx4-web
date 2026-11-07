@@ -1,0 +1,17 @@
+{
+  "name": "DDJ-FLX4 Web DJ Controller",
+  "short_name": "DDJ-FLX4",
+  "description": "Pioneer DJ DDJ-FLX4 Web DJ & AUTO DJ PRO with iOS Background Playback",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b10",
+  "theme_color": "#090b10",
+  "icons": [
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

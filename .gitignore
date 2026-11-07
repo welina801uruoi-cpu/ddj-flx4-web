@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Large media caches
+ddj_flx4_media/transcoded/
+ddj_flx4_media/youtube/
+ddj_flx4_media/tracks/
+*.mp4
+*.webm
+*.part
+*.ytdl
+
+# Binaries & local configs
+cloudflared.exe
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

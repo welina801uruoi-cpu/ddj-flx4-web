@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ddj-flx4-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python ddj_flx4_app.py
+    envVars:
+      - key: PORT
+        value: 10000
